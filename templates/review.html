@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>NewsBot 검토 페이지</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        margin: 24px;
+      }
+      h1 {
+        margin-bottom: 12px;
+      }
+      .toolbar {
+        margin-bottom: 16px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+      .meta {
+        color: #666;
+        font-size: 12px;
+        margin-top: 6px;
+      }
+      .actions button {
+        margin-right: 8px;
+      }
+      .category {
+        font-weight: bold;
+        margin-right: 8px;
+      }
+      .summary {
+        margin-top: 8px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>NewsBot 검토 페이지</h1>
+    <div class="toolbar">
+      <button onclick="collect()">뉴스 수집</button>
+      <button onclick="refresh()">목록 새로고침</button>
+      <button onclick="sendSlack()">슬랙으로 발송</button>
+    </div>
+    <div id="list"></div>
+
+    <script>
+      async function collect() {
+        await fetch("/api/collect", { method: "POST" });
+        await refresh();
+      }
+      async function refresh() {
+        const res = await fetch("/api/review/list");
+        const data = await res.json();
+        const root = document.getElementById("list");
+        root.innerHTML = "";
+        for (const a of data) {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div>
+              <span class="category">[${a.category}]</span>
+              <a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
+            </div>
+            <div class="meta">선택됨: ${a.selected ? "예" : "아니오"}</div>
+            <div class="actions">
+              <button onclick="toggleSelect('${a.url}', ${!a.selected})">${
+            a.selected ? "선택 해제" : "선택"
+          }</button>
+              <button onclick="summarize('${a.url}')">뉴스 요약하기</button>
+              <button onclick="removeItem('${a.url}')">삭제</button>
+            </div>
+            <div class="summary" id="s-${btoa(a.url)}">${a.summary || ""}</div>
+          `;
+          root.appendChild(card);
+        }
+      }
+      async function toggleSelect(url, selected) {
+        await fetch("/api/review/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, selected }),
+        });
+        await refresh();
+      }
+      async function summarize(url) {
+        const res = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        const el = document.getElementById("s-" + btoa(url));
+        if (el) el.textContent = data.summary || "";
+      }
+      async function removeItem(url) {
+        await fetch("/api/review/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        await refresh();
+      }
+      async function sendSlack() {
+        const res = await fetch("/api/send-slack", { method: "POST" });
+        const data = await res.json();
+        alert(data.message || "완료");
+      }
+      // initial load
+      refresh();
+    </script>
+  </body>
+</html>
