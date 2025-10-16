@@ -44,9 +44,8 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
     """
 
     logger = logging.getLogger("crawler.naver")
-    logger.info("crawl_naver_news started (realdata toggle: %s)", cfg.enabled)
-
     cfg = RealDataConfig()
+    logger.info("crawl_naver_news started (realdata toggle: %s)", cfg.enabled)
     raw_articles: List[Dict[str, str]] = []
     if cfg.enabled and cfg.client_id and cfg.client_secret:
         # 실데이터 경로: 키워드 목록(ENV 또는 인자) 기준으로 호출

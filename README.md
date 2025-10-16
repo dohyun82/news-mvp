@@ -231,3 +231,26 @@ if [ -f .flask.pid ]; then kill $(cat .flask.pid); fi \
 - [ ] 슬랙 실연동(chat.postMessage) 및 에러 처리/재시도
 - [ ] 이메일 뉴스레터 확장
 - [ ] DB 도입(SQLite→향후 확장) 및 마이그레이션 레이어
+
+---
+
+## 14. 슬랙 실발송 전환 가이드
+
+1. 환경 변수 설정
+
+```env
+SLACK_BOT_TOKEN="xoxb-..."
+SLACK_CHANNEL_ID="new_biz"
+```
+
+2. 프리뷰에서 실발송으로 전환
+
+- 현재는 토큰/채널 미설정 시 프리뷰 모드로 메시지를 반환합니다.
+- 토큰/채널이 설정되면 `modules/slack.py` 내 TODO 위치에 `chat.postMessage` 연동을 추가합니다(표준 라이브러리 `urllib` 권장).
+  - 요청 실패 시 재시도(지수 백오프), 429/5xx 처리
+  - 성공/실패 로그 남기기
+
+3. 운영 권장 사항
+
+- 발송 전 `/review`에서 최종 선택/요약 확인 후 발송
+- 운영 키는 `.env`(로컬) 또는 안전한 비밀 관리 스토어(CI/CD)에서 주입
