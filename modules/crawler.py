@@ -5,6 +5,7 @@ import json
 import urllib.parse
 import urllib.request
 import time
+import logging
 
 from .config import get_default_keywords_by_category, RealDataConfig
 from .curation import curate
@@ -42,7 +43,8 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
     Returns curated list with categories and basic dedup/filters applied.
     """
 
-    print("crawler.py: crawl_naver_news() called")
+    logger = logging.getLogger("crawler.naver")
+    logger.info("crawl_naver_news started (realdata toggle: %s)", cfg.enabled)
 
     cfg = RealDataConfig()
     raw_articles: List[Dict[str, str]] = []
@@ -50,6 +52,8 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
         # 실데이터 경로: 키워드 목록(ENV 또는 인자) 기준으로 호출
         kw_list = [k.strip() for k in (cfg.query_keywords or ",".join(keywords)).split(",") if k.strip()]
         remaining = cfg.max_articles
+        started = time.perf_counter()
+        failures = 0
         for kw in kw_list:
             if remaining <= 0:
                 break
@@ -71,12 +75,16 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
                     raw_articles.extend(items)
                     remaining -= len(items)
                     success = True
+                    logger.info("fetched %d items for kw='%s' (remaining=%d)", len(items), kw, remaining)
                 except Exception as e:
                     attempts += 1
                     if attempts >= 3:
-                        print(f"naver api fetch failed for '{kw}': {e}")
+                        failures += 1
+                        logger.error("naver api fetch failed for kw='%s': %s", kw, e)
                 finally:
                     time.sleep(max(0.0, cfg.delay_ms / 1000.0))
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        logger.info("naver fetch done: total_raw=%d failures=%d elapsed_ms=%d", len(raw_articles), failures, elapsed_ms)
     else:
         # 스텁 데이터 (기존 동작)
         raw_articles = [
