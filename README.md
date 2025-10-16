@@ -114,6 +114,10 @@ flask --app app run --host=0.0.0.0 --port 5001 > .flask.log 2>&1 & echo $! > .fl
 
 # 서버 종료 (백그라운드)
 if [ -f .flask.pid ]; then kill $(cat .flask.pid); fi
+
+# 서버 재기동 (백그라운드)
+if [ -f .flask.pid ]; then kill $(cat .flask.pid); fi \
+  && flask --app app run --host=0.0.0.0 --port 5001 > .flask.log 2>&1 & echo $! > .flask.pid
 ```
 
 ## 7. 참고 문서

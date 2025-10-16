@@ -44,6 +44,19 @@ class GeminiConfig:
     api_key: str = os.getenv("GEMINI_API_KEY", "")
 
 
+@dataclass(frozen=True)
+class RealDataConfig:
+    """Configuration for real data fetching via Naver Search API."""
+
+    enabled: bool = os.getenv("REALDATA_ENABLED", "false").lower() == "true"
+    client_id: str = os.getenv("NAVER_API_CLIENT_ID", "")
+    client_secret: str = os.getenv("NAVER_API_CLIENT_SECRET", "")
+    query_keywords: str = os.getenv("NAVER_QUERY_KEYWORDS", "")
+    max_articles: int = int(os.getenv("NAVER_MAX_ARTICLES", "20"))
+    timeout_ms: int = int(os.getenv("NAVER_TIMEOUT_MS", "5000"))
+    sort: str = os.getenv("NAVER_SORT", "sim")
+
+
 # Domain: Category → Keywords mapping (from Confluence definitions)
 GROUP_NEWS_KEYWORDS: List[str] = [
     "현대이지웰",
@@ -106,6 +119,7 @@ def get_default_keywords_by_category() -> Dict[str, List[str]]:
 __all__ = [
     "SlackConfig",
     "GeminiConfig",
+    "RealDataConfig",
     "get_default_keywords_by_category",
     "GROUP_NEWS_KEYWORDS",
     "INDUSTRY_NEWS_KEYWORDS",
