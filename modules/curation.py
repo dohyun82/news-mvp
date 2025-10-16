@@ -18,11 +18,15 @@ def normalize_title(title: str) -> str:
     """Normalize article titles for comparison (case/punctuation).
 
     - Lowercase
-    - Remove brackets and extra whitespace
+    - Remove brackets/dashes
+    - Collapse consecutive whitespace
     """
 
     lowered = title.lower()
-    cleaned = re.sub(r"[\[\]\(\)\{\}\-–—]|\s+", " ", lowered).strip()
+    # Remove bracket/dash characters without introducing extra spaces first
+    no_brackets = re.sub(r"[\[\]\(\)\{\}\-–—]", "", lowered)
+    # Then collapse all whitespace runs to a single space
+    cleaned = re.sub(r"\s+", " ", no_brackets).strip()
     return cleaned
 
 
