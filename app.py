@@ -1,8 +1,14 @@
 from flask import Flask, jsonify, render_template, request
 from modules import crawler, gemini, slack
 from modules.store import store
+from modules.common import configure_logging, register_http_logging, register_error_handlers
 
 app = Flask(__name__)
+
+# Common logging / error handling
+configure_logging()
+register_http_logging(app)
+register_error_handlers(app)
 
 @app.route('/')
 def index():
@@ -53,6 +59,10 @@ def review_select():
         return jsonify({"error": "url is required"}), 400
     ok = store.set_selected(url, selected)
     return jsonify({"updated": ok})
+
+@app.route('/')
+def index_page():
+    return render_template('index.html')
 
 @app.route('/review')
 def review_page():
