@@ -4,6 +4,7 @@ from typing import Dict, List
 import json
 import urllib.parse
 import urllib.request
+import time
 
 from .config import get_default_keywords_by_category, RealDataConfig
 from .curation import curate
@@ -53,21 +54,29 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
             if remaining <= 0:
                 break
             batch = min(100, remaining)
-            try:
-                items = _fetch_naver_news_api(
-                    kw,
-                    display=batch,
-                    start=1,
-                    sort=cfg.sort,
-                    timeout=max(1, cfg.timeout_ms // 1000),
-                    client_id=cfg.client_id,
-                    client_secret=cfg.client_secret,
-                )
-                raw_articles.extend(items)
-                remaining -= len(items)
-            except Exception as e:
-                # 실패 시 계속 진행 (부분 성공 허용)
-                print(f"naver api fetch failed for '{kw}': {e}")
+            # 간단 재시도(최대 2회) + 호출 간 딜레이
+            attempts = 0
+            success = False
+            while attempts < 3 and not success:
+                try:
+                    items = _fetch_naver_news_api(
+                        kw,
+                        display=batch,
+                        start=1,
+                        sort=cfg.sort,
+                        timeout=max(1, cfg.timeout_ms // 1000),
+                        client_id=cfg.client_id,
+                        client_secret=cfg.client_secret,
+                    )
+                    raw_articles.extend(items)
+                    remaining -= len(items)
+                    success = True
+                except Exception as e:
+                    attempts += 1
+                    if attempts >= 3:
+                        print(f"naver api fetch failed for '{kw}': {e}")
+                finally:
+                    time.sleep(max(0.0, cfg.delay_ms / 1000.0))
     else:
         # 스텁 데이터 (기존 동작)
         raw_articles = [

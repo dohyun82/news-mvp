@@ -55,6 +55,7 @@ class RealDataConfig:
     max_articles: int = int(os.getenv("NAVER_MAX_ARTICLES", "20"))
     timeout_ms: int = int(os.getenv("NAVER_TIMEOUT_MS", "5000"))
     sort: str = os.getenv("NAVER_SORT", "sim")
+    delay_ms: int = int(os.getenv("NAVER_DELAY_MS", "300"))
 
 
 # Domain: Category → Keywords mapping (from Confluence definitions)
