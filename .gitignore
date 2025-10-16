@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# Env
+.env
+
+# Virtualenv
+venv/
+
+# Flask
+.flask.log
+.flask.pid
+
+# Serena
+.serena/    
+
+# Cursor
+.cursor/    
+
+# vscode
+.vscode/
