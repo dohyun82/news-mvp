@@ -52,7 +52,7 @@ class RealDataConfig:
     client_id: str = os.getenv("NAVER_API_CLIENT_ID", "")
     client_secret: str = os.getenv("NAVER_API_CLIENT_SECRET", "")
     query_keywords: str = os.getenv("NAVER_QUERY_KEYWORDS", "")
-    max_articles: int = int(os.getenv("NAVER_MAX_ARTICLES", "20"))
+    max_articles: int = int(os.getenv("NAVER_MAX_ARTICLES", "30"))
     timeout_ms: int = int(os.getenv("NAVER_TIMEOUT_MS", "5000"))
     sort: str = os.getenv("NAVER_SORT", "sim")
     delay_ms: int = int(os.getenv("NAVER_DELAY_MS", "300"))
