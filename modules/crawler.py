@@ -30,8 +30,17 @@ def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, ti
     for it in items:
         title = it.get("title", "").replace("<b>", "").replace("</b>", "")
         url = it.get("originallink") or it.get("link") or ""
+        # 네이버 API에서 제공하는 description (기사 요약 정보)
+        description = it.get("description", "").replace("<b>", "").replace("</b>", "").strip()
+        # 네이버 API에서 제공하는 발행일 (나중에 사용할 수 있도록 저장)
+        pub_date = it.get("pubDate", "").strip()
         if title and url:
-            results.append({"title": title, "url": url})
+            article = {"title": title, "url": url}
+            if description:
+                article["description"] = description
+            if pub_date:
+                article["pub_date"] = pub_date
+            results.append(article)
     return results
 
 
@@ -87,11 +96,34 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
     else:
         # 스텁 데이터 (기존 동작)
         raw_articles = [
-            {"title": "현대백화점그룹, 식권대장과 협력 강화", "url": "http://example.com/a"},
-            {"title": "기업 복지 포인트, 이커머스와 연계 확대", "url": "http://example.com/b"},
-            {"title": "[광고] 최고의 프로모션 소식", "url": "http://example.com/c"},
-            {"title": "현대백화점그룹, 식권대장과 협력 강화", "url": "http://example.com/a-dup"},
-            {"title": "밀키트 수요 증가와 푸드테크 트렌드", "url": "http://example.com/d"},
+            {
+                "title": "현대백화점그룹, 식권대장과 협력 강화",
+                "url": "http://example.com/a",
+                "description": "현대백화점그룹이 식권대장과의 협력을 강화하며 기업 복지 서비스 확대를 추진한다고 발표했다.",
+                "pub_date": "Thu, 13 Nov 2025 16:56:00 +0900",
+            },
+            {
+                "title": "기업 복지 포인트, 이커머스와 연계 확대",
+                "url": "http://example.com/b",
+                "description": "기업 복지 포인트가 주요 이커머스 플랫폼과 연계를 확대하여 직원들의 복지 혜택을 늘린다.",
+                "pub_date": "Thu, 13 Nov 2025 14:30:00 +0900",
+            },
+            {
+                "title": "[광고] 최고의 프로모션 소식",
+                "url": "http://example.com/c",
+            },
+            {
+                "title": "현대백화점그룹, 식권대장과 협력 강화",
+                "url": "http://example.com/a-dup",
+                "description": "현대백화점그룹이 식권대장과의 협력을 강화하며 기업 복지 서비스 확대를 추진한다고 발표했다.",
+                "pub_date": "Thu, 13 Nov 2025 16:56:00 +0900",
+            },
+            {
+                "title": "밀키트 수요 증가와 푸드테크 트렌드",
+                "url": "http://example.com/d",
+                "description": "밀키트 시장이 지속적으로 성장하며 푸드테크 산업의 새로운 트렌드로 주목받고 있다.",
+                "pub_date": "Thu, 13 Nov 2025 12:15:00 +0900",
+            },
         ]
 
     keywords_by_category = get_default_keywords_by_category()

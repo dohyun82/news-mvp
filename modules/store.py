@@ -19,6 +19,8 @@ class Article:
     category: str
     selected: bool = False
     summary: str = ""
+    description: str = ""  # 네이버 API에서 제공하는 기사 요약 정보
+    pub_date: str = ""  # 네이버 API에서 제공하는 발행일 (나중에 사용할 수 있도록 저장)
 
 
 class InMemoryStore:
@@ -32,6 +34,8 @@ class InMemoryStore:
                 title=a.get("title", ""),
                 url=a.get("url", ""),
                 category=a.get("category", "읽을거리"),
+                description=a.get("description", ""),  # 네이버 API description 저장
+                pub_date=a.get("pub_date", ""),  # 네이버 API 발행일 저장
             )
             for a in articles
         ]
@@ -44,6 +48,8 @@ class InMemoryStore:
                 "category": a.category,
                 "selected": a.selected,
                 "summary": a.summary,
+                "description": a.description,  # 네이버 API description 포함
+                "pub_date": a.pub_date,  # 네이버 API 발행일 포함
             }
             for a in self._articles
         ]
@@ -74,6 +80,8 @@ class InMemoryStore:
                 "url": a.url,
                 "category": a.category,
                 "summary": a.summary,
+                "description": a.description,
+                "pub_date": a.pub_date,
             }
             for a in self._articles
             if a.selected

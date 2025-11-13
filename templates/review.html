@@ -36,6 +36,19 @@
         margin-top: 8px;
         white-space: pre-wrap;
       }
+      .description {
+        color: #555;
+        font-size: 14px;
+        margin-top: 6px;
+        margin-bottom: 8px;
+        line-height: 1.5;
+      }
+      .pub-date {
+        color: #888;
+        font-size: 12px;
+        margin-top: 4px;
+        margin-bottom: 8px;
+      }
     </style>
   </head>
   <body>
@@ -52,6 +65,22 @@
         await fetch("/api/collect", { method: "POST" });
         await refresh();
       }
+      // 날짜 포맷팅 함수 (RFC 822 형식을 사용자 친화적 형식으로 변환)
+      function formatDate(dateStr) {
+        if (!dateStr) return "";
+        try {
+          const date = new Date(dateStr);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const day = String(date.getDate()).padStart(2, "0");
+          const hours = String(date.getHours()).padStart(2, "0");
+          const minutes = String(date.getMinutes()).padStart(2, "0");
+          return `${year}-${month}-${day} ${hours}:${minutes}`;
+        } catch (e) {
+          return dateStr; // 파싱 실패 시 원본 반환
+        }
+      }
+
       async function refresh() {
         const res = await fetch("/api/review/list");
         const data = await res.json();
@@ -65,6 +94,16 @@
               <span class="category">[${a.category}]</span>
               <a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
             </div>
+            ${
+              a.description
+                ? `<div class="description">${a.description}</div>`
+                : ""
+            }
+            ${
+              a.pub_date
+                ? `<div class="pub-date">📅 ${formatDate(a.pub_date)}</div>`
+                : ""
+            }
             <div class="meta">선택됨: ${a.selected ? "예" : "아니오"}</div>
             <div class="actions">
               <button onclick="toggleSelect('${a.url}', ${!a.selected})">${
