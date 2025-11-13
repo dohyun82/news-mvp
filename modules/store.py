@@ -79,6 +79,13 @@ class InMemoryStore:
             if a.selected
         ]
 
+    def get_article_by_url(self, url: str) -> Optional[Article]:
+        """URL로 기사를 찾아 반환합니다. 없으면 None을 반환합니다."""
+        for a in self._articles:
+            if a.url == url:
+                return a
+        return None
+
 
 store = InMemoryStore()
 

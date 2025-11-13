@@ -10,10 +10,6 @@ configure_logging()
 register_http_logging(app)
 register_error_handlers(app)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
 @app.route('/api/collect', methods=['POST'])
 def collect_news():
     articles = crawler.crawl_naver_news([])
@@ -26,7 +22,13 @@ def summarize_news():
     url = data.get("url")
     if not url:
         return jsonify({"error": "url is required"}), 400
-    summary = gemini.get_summary_from_gemini(url)
+    
+    # store에서 기사 정보 가져오기 (제목을 함께 전달하기 위해)
+    article = store.get_article_by_url(url)
+    title = article.title if article else None
+    
+    # Gemini API 호출 (제목이 있으면 함께 전달)
+    summary = gemini.get_summary_from_gemini(url, title=title)
     store.set_summary(url, summary)
     return jsonify({"url": url, "summary": summary})
 
@@ -61,7 +63,7 @@ def review_select():
     return jsonify({"updated": ok})
 
 @app.route('/')
-def index_page():
+def index():
     return render_template('index.html')
 
 @app.route('/review')
