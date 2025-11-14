@@ -880,6 +880,14 @@
           const res = await fetch("/api/send-slack", { method: "POST" });
           const data = await res.json();
           alert(data.message || "완료");
+          
+          // 슬랙 전송 성공 시 버튼 비활성화
+          if (data.success) {
+            const sendSlackBtn = document.getElementById("send-slack-btn");
+            if (sendSlackBtn) {
+              sendSlackBtn.disabled = true;
+            }
+          }
         } catch (error) {
           console.error("슬랙 발송 중 오류:", error);
           alert("슬랙 발송 중 오류가 발생했습니다: " + error.message);

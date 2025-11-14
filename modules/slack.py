@@ -29,29 +29,67 @@ def _group_by_category(articles: List[Dict[str, str]]) -> Dict[str, List[Dict[st
 
 
 def format_slack_message(articles: List[Dict[str, str]]) -> str:
-    """Create a simple Slack-formatted message preserving bold/emojis style."""
+    """Create a Slack-formatted message in Daily News Clipping style.
+    
+    Format:
+    - Title: "Daily News Clipping" with checkmark icon
+    - Categories with icons:
+      - 그룹사: bulb icon
+      - 업계: cloud icon
+      - 참고: speech_balloon icon
+      - 읽을거리: newspaper icon
+    - Each article: bullet point with title and summary
+    """
     if not articles:
-        return "*오늘의 클리핑*\n\n선택된 기사가 없습니다."
+        return ":white_check_mark: *Daily News Clipping*\n\n선택된 기사가 없습니다."
 
     grouped = _group_by_category(articles)
     lines: List[str] = []
-    lines.append(":newspaper: *오늘의 클리핑*\n")
+    lines.append(":white_check_mark: *Daily News Clipping*\n")
 
+    # 카테고리별 아이콘 매핑
+    category_icons = {
+        "그룹사": ":bulb:",
+        "업계": ":cloud:",
+        "참고": ":speech_balloon:",
+        "읽을거리": ":newspaper:",
+    }
+    
     order = ["그룹사", "업계", "참고", "읽을거리"]
     for cat in order:
         items = grouped.get(cat, [])
         if not items:
             continue
-        lines.append(f"*[{cat}]*")
+        
+        # 카테고리 헤더 (아이콘 + 카테고리명)
+        icon = category_icons.get(cat, ":newspaper:")
+        lines.append(f"{icon} *{cat} 뉴스*")
+        
+        # 각 기사 표시
         for art in items:
             title = art.get("title", "")
             url = art.get("url", "")
             summary = art.get("summary", "")
-            # Slack basic mrkdwn: link format <url|text>
-            link = f"<{url}|{title}>" if url and title else (title or url)
-            snippet = f" — {summary}" if summary else ""
-            lines.append(f"• {link}{snippet}")
-        lines.append("")  # blank line between categories
+            
+            # 요약이 있으면 요약 내용 표시, 없으면 제목만 표시
+            if summary:
+                # 요약 내용이 있으면 제목과 요약을 함께 표시
+                if url and title:
+                    link = f"<{url}|{title}>"
+                    lines.append(f"• {link}")
+                    lines.append(f"  {summary}")
+                else:
+                    lines.append(f"• {title}")
+                    lines.append(f"  {summary}")
+            else:
+                # 요약이 없으면 제목만 링크로 표시
+                if url and title:
+                    link = f"<{url}|{title}>"
+                    lines.append(f"• {link}")
+                else:
+                    lines.append(f"• {title or url}")
+        
+        lines.append("")  # 카테고리 간 빈 줄
 
     return "\n".join(lines).strip()
 

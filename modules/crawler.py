@@ -123,41 +123,47 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
             kw_list = []
         
         # 최대 수집 개수: 사용자 설정 > 환경 변수 > 기본값
+        # 각 키워드마다 이 개수만큼 수집 (전체 합계가 아님)
         if user_max_articles is not None:
-            remaining = user_max_articles
+            max_per_keyword = user_max_articles
         else:
-            remaining = cfg.max_articles
+            max_per_keyword = cfg.max_articles
         started = time.perf_counter()
         failures = 0
         for kw in kw_list:
-            if remaining <= 0:
-                break
-            batch = min(100, remaining)
-            # 간단 재시도(최대 2회) + 호출 간 딜레이
-            attempts = 0
-            success = False
-            while attempts < 3 and not success:
-                try:
-                    items = _fetch_naver_news_api(
-                        kw,
-                        display=batch,
-                        start=1,
-                        sort=cfg.sort,
-                        timeout=max(1, cfg.timeout_ms // 1000),
-                        client_id=cfg.client_id,
-                        client_secret=cfg.client_secret,
-                    )
-                    raw_articles.extend(items)
-                    remaining -= len(items)
-                    success = True
-                    logger.info("fetched %d items for kw='%s' (remaining=%d)", len(items), kw, remaining)
-                except Exception as e:
-                    attempts += 1
-                    if attempts >= 3:
-                        failures += 1
-                        logger.error("naver api fetch failed for kw='%s': %s", kw, e)
-                finally:
-                    time.sleep(max(0.0, cfg.delay_ms / 1000.0))
+            # 각 키워드마다 독립적으로 최대 수집 개수만큼 수집
+            remaining = max_per_keyword
+            while remaining > 0:
+                batch = min(100, remaining)
+                # 간단 재시도(최대 2회) + 호출 간 딜레이
+                attempts = 0
+                success = False
+                while attempts < 3 and not success:
+                    try:
+                        items = _fetch_naver_news_api(
+                            kw,
+                            display=batch,
+                            start=1,
+                            sort=cfg.sort,
+                            timeout=max(1, cfg.timeout_ms // 1000),
+                            client_id=cfg.client_id,
+                            client_secret=cfg.client_secret,
+                        )
+                        raw_articles.extend(items)
+                        remaining -= len(items)
+                        success = True
+                        logger.info("fetched %d items for kw='%s' (remaining=%d)", len(items), kw, remaining)
+                        # API에서 반환된 개수가 batch보다 적으면 더 이상 수집할 수 없음
+                        if len(items) < batch:
+                            remaining = 0
+                    except Exception as e:
+                        attempts += 1
+                        if attempts >= 3:
+                            failures += 1
+                            logger.error("naver api fetch failed for kw='%s': %s", kw, e)
+                            remaining = 0  # 실패 시 해당 키워드 수집 중단
+                    finally:
+                        time.sleep(max(0.0, cfg.delay_ms / 1000.0))
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         logger.info("naver fetch done: total_raw=%d failures=%d elapsed_ms=%d", len(raw_articles), failures, elapsed_ms)
     else:
