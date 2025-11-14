@@ -5,6 +5,10 @@ from modules.common import configure_logging, register_http_logging, register_er
 
 app = Flask(__name__)
 
+# 개발 모드: 템플릿 캐시 비활성화 (코드 변경 즉시 반영)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # 정적 파일 캐시 비활성화
+
 # Common logging / error handling
 configure_logging()
 register_http_logging(app)
@@ -71,6 +75,15 @@ def review_page():
     return render_template('review.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, port=5001)
+    # 개발 모드: 코드 변경 시 자동 리로드 활성화
+    # use_reloader=True: Python 파일 변경 감지 및 자동 재시작
+    # use_debugger=True: 디버깅 모드 활성화
+    app.run(
+        host='0.0.0.0',
+        port=5001,
+        debug=True,
+        use_reloader=True,
+        use_debugger=True
+    )
 
 
