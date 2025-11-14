@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 import json
 import urllib.parse
 import urllib.request
 import time
 import logging
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 
 from .config import get_default_keywords_by_category, RealDataConfig
 from .curation import curate
@@ -44,7 +46,53 @@ def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, ti
     return results
 
 
-def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user_max_articles: int = None, user_category_keywords: Dict[str, List[str]] = None) -> List[Dict[str, str]]:
+def _filter_by_age(articles: List[Dict[str, str]], max_age_hours: Optional[int]) -> List[Dict[str, str]]:
+    """발행 시간을 기준으로 기사를 필터링합니다.
+    
+    Args:
+        articles: 필터링할 기사 리스트
+        max_age_hours: 최대 기사 나이 (시간). None이거나 0이면 필터링하지 않음.
+    
+    Returns:
+        필터링된 기사 리스트 (pub_date가 없거나 설정된 시간 이전의 기사는 제외)
+    """
+    if not max_age_hours or max_age_hours <= 0:
+        return articles
+    
+    # 현재 시간을 UTC 기준으로 가져오기 (타임존 문제 방지)
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    cutoff_time = now - timedelta(hours=max_age_hours)
+    filtered: List[Dict[str, str]] = []
+    
+    for article in articles:
+        pub_date_str = article.get("pub_date", "").strip()
+        if not pub_date_str:
+            # pub_date가 없는 기사는 제외
+            continue
+        
+        try:
+            # RFC 822 형식 파싱 (예: "Thu, 13 Nov 2025 16:56:00 +0900")
+            pub_datetime = parsedate_to_datetime(pub_date_str)
+            # 타임존 정보가 없으면 UTC로 가정
+            if pub_datetime.tzinfo is None:
+                pub_datetime = pub_datetime.replace(tzinfo=timezone.utc)
+            else:
+                # UTC로 변환하여 비교
+                pub_datetime = pub_datetime.astimezone(timezone.utc)
+            
+            # 설정된 시간 이후에 발행된 기사만 포함
+            if pub_datetime >= cutoff_time:
+                filtered.append(article)
+        except (ValueError, TypeError) as e:
+            # 날짜 파싱 실패 시 해당 기사는 제외
+            logging.getLogger("crawler.naver").warning("Failed to parse pub_date '%s': %s", pub_date_str, e)
+            continue
+    
+    return filtered
+
+
+def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user_max_articles: int = None, user_category_keywords: Dict[str, List[str]] = None, user_max_age_hours: int = None) -> List[Dict[str, str]]:
     """
     Collect news by keywords. MVP phase uses stubbed data; replace with
     real crawling (requests/feeds) later.
@@ -54,6 +102,7 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
         user_keywords: 사용자가 설정한 키워드 (쉼표 구분 문자열, 우선순위 높음)
         user_max_articles: 사용자가 설정한 최대 수집 개수 (우선순위 높음)
         user_category_keywords: 사용자가 설정한 카테고리별 키워드 딕셔너리 (우선순위 높음)
+        user_max_age_hours: 사용자가 설정한 최대 기사 나이 (시간, 우선순위 높음)
 
     Returns curated list with categories and basic dedup/filters applied.
     """
@@ -143,6 +192,16 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
                 "pub_date": "Thu, 13 Nov 2025 12:15:00 +0900",
             },
         ]
+
+    # 최대 기사 나이 필터링: 사용자 설정 > 환경 변수
+    if user_max_age_hours is not None:
+        max_age_hours = user_max_age_hours
+    else:
+        max_age_hours = cfg.max_news_age_hours
+    
+    # 시간 기반 필터링 적용
+    raw_articles = _filter_by_age(raw_articles, max_age_hours)
+    logger.info("after age filtering: %d articles", len(raw_articles))
 
     # 카테고리별 키워드: 사용자 설정 > 기본값
     if user_category_keywords is not None:

@@ -62,6 +62,7 @@ class RealDataConfig:
     group_keywords: str = os.getenv("CATEGORY_GROUP_KEYWORDS", "")
     industry_keywords: str = os.getenv("CATEGORY_INDUSTRY_KEYWORDS", "")
     reference_keywords: str = os.getenv("CATEGORY_REFERENCE_KEYWORDS", "")
+    max_news_age_hours: int = int(os.getenv("NEWS_MAX_AGE_HOURS", "24"))
 
 
 def get_default_keywords_by_category() -> Dict[str, List[str]]:

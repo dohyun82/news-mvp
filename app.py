@@ -21,6 +21,7 @@ _user_settings = {
     "keywords": None,  # None이면 환경 변수 사용
     "max_articles": None,  # None이면 환경 변수 사용
     "category_keywords": None,  # None이면 기본 키워드 사용
+    "max_age_hours": None,  # None이면 환경 변수 사용
 }
 
 @app.route('/api/collect', methods=['POST'])
@@ -29,12 +30,14 @@ def collect_news():
     user_keywords = _user_settings["keywords"]
     user_max_articles = _user_settings["max_articles"]
     user_category_keywords = _user_settings["category_keywords"]
+    user_max_age_hours = _user_settings["max_age_hours"]
     
     articles = crawler.crawl_naver_news(
         keywords=[],
         user_keywords=user_keywords,
         user_max_articles=user_max_articles,
-        user_category_keywords=user_category_keywords
+        user_category_keywords=user_category_keywords,
+        user_max_age_hours=user_max_age_hours
     )
     store.set_articles(articles)
     return jsonify({"count": len(articles)})
@@ -152,6 +155,7 @@ def settings_initial_values():
         "keywords": cfg.query_keywords,
         "max_articles": cfg.max_articles,
         "category_keywords": default_category_keywords,
+        "max_age_hours": cfg.max_news_age_hours,
     })
 
 @app.route('/api/settings/save', methods=['POST'])
@@ -162,12 +166,14 @@ def settings_save():
     - keywords: 쉼표로 구분된 키워드 문자열
     - max_articles: 최대 수집 뉴스 개수 (정수)
     - category_keywords: 카테고리별 키워드 딕셔너리 {"그룹사": ["키워드1", ...], "업계": [...], "참고": [...]}
+    - max_age_hours: 최대 기사 나이 (시간, 정수, 0 이상)
     """
     try:
         data = request.get_json(silent=True) or {}
         keywords = data.get("keywords")
         max_articles = data.get("max_articles")
         category_keywords = data.get("category_keywords")
+        max_age_hours = data.get("max_age_hours")
         
         if keywords is not None:
             if not isinstance(keywords, str):
@@ -200,6 +206,15 @@ def settings_save():
                     return jsonify({"error": f"category_keywords[{category}] must contain only strings"}), 400
             _user_settings["category_keywords"] = category_keywords
         
+        if max_age_hours is not None:
+            try:
+                max_age_hours = int(max_age_hours)
+                if max_age_hours < 0:
+                    return jsonify({"error": "max_age_hours must be 0 or greater"}), 400
+            except (ValueError, TypeError):
+                return jsonify({"error": "max_age_hours must be an integer"}), 400
+            _user_settings["max_age_hours"] = max_age_hours
+        
         return jsonify({"saved": True})
     except Exception as e:
         import logging
@@ -216,11 +231,13 @@ def settings_get():
     keywords = _user_settings["keywords"] if _user_settings["keywords"] is not None else cfg.query_keywords
     max_articles = _user_settings["max_articles"] if _user_settings["max_articles"] is not None else cfg.max_articles
     category_keywords = _user_settings["category_keywords"] if _user_settings["category_keywords"] is not None else get_default_keywords_by_category()
+    max_age_hours = _user_settings["max_age_hours"] if _user_settings["max_age_hours"] is not None else cfg.max_news_age_hours
     
     return jsonify({
         "keywords": keywords,
         "max_articles": max_articles,
         "category_keywords": category_keywords,
+        "max_age_hours": max_age_hours,
     })
 
 if __name__ == '__main__':

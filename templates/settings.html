@@ -339,6 +339,24 @@
         </div>
       </div>
 
+      <div class="section">
+        <div class="section-title">뉴스 조회 시간 설정</div>
+        <div class="form-group">
+          <label for="max-age-hours-input">최대 조회 시간 (시간)</label>
+          <div class="form-help">
+            설정한 시간 이전에 발행된 뉴스는 수집하지 않습니다. 0으로 설정하면 시간 제한이 없습니다.
+          </div>
+          <input
+            type="number"
+            id="max-age-hours-input"
+            min="0"
+            step="1"
+            value="24"
+            placeholder="24"
+          />
+        </div>
+      </div>
+
       <button id="save-button" class="save-button" onclick="saveSettings()">
         설정 저장
       </button>
@@ -349,6 +367,7 @@
       const STORAGE_KEY_KEYWORDS = "newsbot_keywords";
       const STORAGE_KEY_MAX_ARTICLES = "newsbot_max_articles";
       const STORAGE_KEY_CATEGORY_KEYWORDS = "newsbot_category_keywords";
+      const STORAGE_KEY_MAX_AGE_HOURS = "newsbot_max_age_hours";
 
       // 키워드 배열
       let keywords = [];
@@ -359,6 +378,9 @@
         "업계": [],
         "참고": []
       };
+
+      // 최대 기사 나이 (시간)
+      let maxAgeHours = 24;
 
       // 페이지 로드 시 초기화
       window.addEventListener("DOMContentLoaded", async () => {
@@ -443,6 +465,31 @@
             }
           } catch (e) {
             console.error("카테고리 키워드 초기값 로드 실패:", e);
+          }
+        }
+
+        // 로컬 스토리지에서 최대 기사 나이 로드
+        const storedMaxAgeHours = localStorage.getItem(
+          STORAGE_KEY_MAX_AGE_HOURS
+        );
+        if (storedMaxAgeHours) {
+          maxAgeHours = parseInt(storedMaxAgeHours, 10);
+          document.getElementById("max-age-hours-input").value = maxAgeHours;
+        } else {
+          // 로컬 스토리지에 없으면 초기값 API 호출
+          try {
+            const res = await fetch("/api/settings/initial-values");
+            const data = await res.json();
+            if (data.max_age_hours !== undefined) {
+              maxAgeHours = parseInt(data.max_age_hours, 10);
+              document.getElementById("max-age-hours-input").value = maxAgeHours;
+              localStorage.setItem(
+                STORAGE_KEY_MAX_AGE_HOURS,
+                String(maxAgeHours)
+              );
+            }
+          } catch (e) {
+            console.error("최대 기사 나이 초기값 로드 실패:", e);
           }
         }
       }
@@ -580,10 +627,19 @@
           return;
         }
 
+        const maxAgeHoursInput = document.getElementById("max-age-hours-input");
+        const maxAgeHours = parseInt(maxAgeHoursInput.value, 10);
+
+        if (isNaN(maxAgeHours) || maxAgeHours < 0) {
+          showMessage("최대 조회 시간은 0 이상의 숫자여야 합니다.", "error");
+          return;
+        }
+
         // 로컬 스토리지에 저장
         localStorage.setItem(STORAGE_KEY_KEYWORDS, JSON.stringify(keywords));
         localStorage.setItem(STORAGE_KEY_MAX_ARTICLES, String(maxArticles));
         localStorage.setItem(STORAGE_KEY_CATEGORY_KEYWORDS, JSON.stringify(categoryKeywords));
+        localStorage.setItem(STORAGE_KEY_MAX_AGE_HOURS, String(maxAgeHours));
 
         // 백엔드에 저장
         try {
@@ -595,6 +651,7 @@
               keywords: keywordsString,
               max_articles: maxArticles,
               category_keywords: categoryKeywords,
+              max_age_hours: maxAgeHours,
             }),
           });
 
