@@ -21,6 +21,7 @@ class Article:
     summary: str = ""
     description: str = ""  # 네이버 API에서 제공하는 기사 요약 정보
     pub_date: str = ""  # 네이버 API에서 제공하는 발행일 (나중에 사용할 수 있도록 저장)
+    original_category: str = ""  # 원본 카테고리 (선택 해제 시 복원용)
 
 
 class InMemoryStore:
@@ -36,6 +37,7 @@ class InMemoryStore:
                 category=a.get("category", "읽을거리"),
                 description=a.get("description", ""),  # 네이버 API description 저장
                 pub_date=a.get("pub_date", ""),  # 네이버 API 발행일 저장
+                original_category=a.get("category", "읽을거리"),  # 원본 카테고리 초기화
             )
             for a in articles
         ]
@@ -50,6 +52,7 @@ class InMemoryStore:
                 "summary": a.summary,
                 "description": a.description,  # 네이버 API description 포함
                 "pub_date": a.pub_date,  # 네이버 API 발행일 포함
+                "original_category": a.original_category,  # 원본 카테고리 포함
             }
             for a in self._articles
         ]
@@ -63,6 +66,17 @@ class InMemoryStore:
         for a in self._articles:
             if a.url == url:
                 a.selected = selected
+                # 선택 해제 시 원본 카테고리로 복원
+                if not selected:
+                    a.category = a.original_category
+                return True
+        return False
+
+    def set_category(self, url: str, category: str) -> bool:
+        """뉴스의 카테고리를 변경합니다. original_category는 유지됩니다."""
+        for a in self._articles:
+            if a.url == url:
+                a.category = category
                 return True
         return False
 

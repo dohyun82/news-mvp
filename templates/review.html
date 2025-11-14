@@ -10,21 +10,111 @@
     <meta http-equiv="Expires" content="0" />
     <title>NewsBot 검토 페이지</title>
     <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        margin: 24px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
       }
       h1 {
         margin-bottom: 12px;
       }
-      .toolbar {
-        margin-bottom: 16px;
+      h2 {
+        margin-top: 0;
+        margin-bottom: 12px;
+        font-size: 18px;
+        color: #333;
+      }
+      .news-container {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+        flex: 1;
+        min-height: 0;
+      }
+      .news-section {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .news-section:first-child {
+        flex: 1;
+      }
+      .news-section:last-child {
+        flex: 4;
+      }
+      .news-section h2 {
+        margin-top: 0;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
       }
       .card {
         border: 1px solid #ddd;
         padding: 12px;
         border-radius: 8px;
         margin-bottom: 12px;
+      }
+      .draggable {
+        cursor: grab;
+      }
+      .draggable:active {
+        cursor: grabbing;
+        opacity: 0.6;
+      }
+      .selected-news-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        flex: 1;
+        min-height: 0;
+      }
+      .category-section {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      .category-section h3 {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+        color: #333;
+        font-weight: 600;
+      }
+      .drop-zone {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+        transition: all 0.2s ease;
+        min-height: 0;
+      }
+      .category-drop-zone {
+        min-height: 0;
+      }
+      .drop-zone.drag-over {
+        border-color: #4a90e2;
+        background-color: #e8f4f8;
+      }
+      .drop-zone.empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+        font-size: 14px;
       }
       .meta {
         color: #666;
@@ -55,20 +145,165 @@
         margin-top: 4px;
         margin-bottom: 8px;
       }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      .loading-overlay.active {
+        display: flex;
+      }
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #4a90e2;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .loading-text {
+        color: white;
+        margin-top: 16px;
+        font-size: 16px;
+      }
+      .loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
     </style>
   </head>
   <body>
-    <h1>NewsBot 검토 페이지</h1>
-    <div class="toolbar">
-      <button onclick="collect()">뉴스 수집</button>
-      <button onclick="sendSlack()">슬랙으로 발송</button>
+    <div id="loading-overlay" class="loading-overlay">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">처리 중...</div>
+      </div>
     </div>
-    <div id="list"></div>
+    <div class="news-container">
+      <div class="news-section">
+        <div class="section-header">
+          <h2>전체 뉴스 목록</h2>
+        </div>
+        <div style="margin-bottom: 12px">
+          <button id="collect-btn" onclick="collect()">뉴스 수집</button>
+        </div>
+        <div
+          id="all-news-list"
+          style="flex: 1; overflow-y: auto; min-height: 0"
+        ></div>
+      </div>
+
+      <div class="news-section">
+        <div class="section-header">
+          <h2>선택된 뉴스 목록</h2>
+        </div>
+        <div style="margin-bottom: 12px">
+          <button id="summarize-all-btn" onclick="summarizeAll()" disabled>
+            뉴스 요약하기
+          </button>
+          <button id="send-slack-btn" onclick="sendSlack()" disabled>
+            슬랙으로 발송
+          </button>
+        </div>
+        <div id="selected-news-list" class="selected-news-container">
+          <div class="category-section">
+            <h3>그룹사 뉴스</h3>
+            <div
+              id="category-그룹사"
+              class="drop-zone category-drop-zone"
+              data-category="그룹사"
+            ></div>
+          </div>
+          <div class="category-section">
+            <h3>업계 뉴스</h3>
+            <div
+              id="category-업계"
+              class="drop-zone category-drop-zone"
+              data-category="업계"
+            ></div>
+          </div>
+          <div class="category-section">
+            <h3>참고 뉴스</h3>
+            <div
+              id="category-참고"
+              class="drop-zone category-drop-zone"
+              data-category="참고"
+            ></div>
+          </div>
+          <div class="category-section">
+            <h3>읽을거리</h3>
+            <div
+              id="category-읽을거리"
+              class="drop-zone category-drop-zone"
+              data-category="읽을거리"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script>
+      // 로딩 상태 관리
+      let isLoading = false;
+
+      function showLoading(text = "처리 중...") {
+        isLoading = true;
+        const overlay = document.getElementById("loading-overlay");
+        const loadingText = document.getElementById("loading-text");
+        if (overlay) {
+          overlay.classList.add("active");
+        }
+        if (loadingText) {
+          loadingText.textContent = text;
+        }
+        // 모든 버튼 비활성화
+        document.querySelectorAll("button").forEach((btn) => {
+          btn.disabled = true;
+        });
+      }
+
+      function hideLoading() {
+        isLoading = false;
+        const overlay = document.getElementById("loading-overlay");
+        if (overlay) {
+          overlay.classList.remove("active");
+        }
+        // 버튼 상태 업데이트 (요약/발송 버튼은 요약 상태에 따라)
+        updateButtons();
+      }
+
       async function collect() {
-        await fetch("/api/collect", { method: "POST" });
-        await refresh();
+        if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
+        try {
+          showLoading("뉴스 수집 중...");
+          await fetch("/api/collect", { method: "POST" });
+          await refresh();
+        } catch (error) {
+          console.error("뉴스 수집 중 오류:", error);
+          alert("뉴스 수집 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          hideLoading();
+        }
       }
       // 날짜 포맷팅 함수 (RFC 822 형식을 사용자 친화적 형식으로 변환)
       function formatDate(dateStr) {
@@ -87,21 +322,89 @@
       }
 
       async function refresh() {
+        await refreshAllNews();
+        await refreshSelectedNews();
+        updateButtons();
+      }
+
+      function getSelectedCount() {
+        const selectedList = document.getElementById("selected-news-list");
+        return selectedList ? selectedList.children.length : 0;
+      }
+
+      async function updateButtons() {
+        // 선택된 뉴스 목록 가져오기
         const res = await fetch("/api/review/list");
         const data = await res.json();
-        const root = document.getElementById("list");
+        const selectedNews = data.filter((a) => a.selected);
+
+        // 요약이 안 된 뉴스가 있는지 확인
+        const hasUnsummarized = selectedNews.some(
+          (a) => !a.summary || a.summary.trim() === ""
+        );
+
+        // 모든 뉴스가 요약 완료되었는지 확인
+        const allSummarized =
+          selectedNews.length > 0 &&
+          selectedNews.every((a) => a.summary && a.summary.trim() !== "");
+
+        // 뉴스 요약하기 버튼: 요약이 안 된 뉴스가 있는 경우에만 활성화
+        const summarizeBtn = document.getElementById("summarize-all-btn");
+        if (summarizeBtn) {
+          summarizeBtn.disabled = !hasUnsummarized || selectedNews.length === 0;
+        }
+
+        // 슬랙 발송 버튼: 모든 뉴스가 요약 완료된 경우에만 활성화
+        const sendSlackBtn = document.getElementById("send-slack-btn");
+        if (sendSlackBtn) {
+          sendSlackBtn.disabled = !allSummarized || selectedNews.length === 0;
+        }
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      async function refreshAllNews() {
+        const res = await fetch("/api/review/list");
+        const data = await res.json();
+        const root = document.getElementById("all-news-list");
         root.innerHTML = "";
-        for (const a of data) {
+
+        const allNews = data.filter((a) => !a.selected);
+
+        if (allNews.length === 0) {
+          root.innerHTML =
+            "<p style='color: #999;'>수집된 뉴스가 없습니다.</p>";
+          return;
+        }
+
+        for (const a of allNews) {
           const card = document.createElement("div");
-          card.className = "card";
+          card.className = "card draggable";
+          card.draggable = true;
+          card.setAttribute("data-url", a.url);
+          card.ondragstart = (e) => handleDragStart(e, a.url);
+          card.ondragend = handleDragEnd;
+
+          const escapedTitle = escapeHtml(a.title);
+          const escapedDescription = a.description
+            ? escapeHtml(a.description)
+            : "";
+          const escapedCategory = escapeHtml(a.category);
+
           card.innerHTML = `
             <div>
-              <span class="category">[${a.category}]</span>
-              <a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
+              <span class="category">[${escapedCategory}]</span>
+              <a href="${
+                a.url
+              }" target="_blank" rel="noopener">${escapedTitle}</a>
             </div>
             ${
-              a.description
-                ? `<div class="description">${a.description}</div>`
+              escapedDescription
+                ? `<div class="description">${escapedDescription}</div>`
                 : ""
             }
             ${
@@ -109,30 +412,299 @@
                 ? `<div class="pub-date">📅 ${formatDate(a.pub_date)}</div>`
                 : ""
             }
-            <div class="meta">선택됨: ${a.selected ? "예" : "아니오"}</div>
             <div class="actions">
-              <button onclick="toggleSelect('${a.url}', ${!a.selected})">${
-            a.selected ? "선택 해제" : "선택"
-          }</button>
-              <button onclick="summarize('${a.url}')">뉴스 요약하기</button>
-              <button onclick="removeItem('${a.url}')">삭제</button>
+              <button class="remove-btn" data-url="${escapeHtml(
+                a.url
+              )}">삭제</button>
             </div>
-            <div class="summary" id="s-${btoa(a.url)}">${a.summary || ""}</div>
           `;
+          const removeBtn = card.querySelector(".remove-btn");
+          if (removeBtn) {
+            removeBtn.addEventListener("click", () => removeItem(a.url));
+          }
           root.appendChild(card);
         }
       }
-      async function toggleSelect(url, selected) {
-        await fetch("/api/review/select", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, selected }),
+
+      async function refreshSelectedNews() {
+        const res = await fetch("/api/review/list");
+        const data = await res.json();
+        const selectedNews = data.filter((a) => a.selected);
+
+        // 카테고리별로 그룹화
+        const categories = ["그룹사", "업계", "참고", "읽을거리"];
+        const newsByCategory = {};
+        categories.forEach((cat) => {
+          newsByCategory[cat] = selectedNews.filter((a) => a.category === cat);
         });
-        await refresh();
+
+        // 각 카테고리 영역에 뉴스 표시
+        categories.forEach((category) => {
+          const categoryZone = document.getElementById(`category-${category}`);
+          if (!categoryZone) return;
+
+          categoryZone.innerHTML = "";
+
+          const newsInCategory = newsByCategory[category] || [];
+
+          if (newsInCategory.length === 0) {
+            categoryZone.innerHTML =
+              '<p class="empty-message">이 카테고리에 뉴스가 없습니다.</p>';
+            categoryZone.classList.add("empty");
+            return;
+          }
+
+          categoryZone.classList.remove("empty");
+
+          newsInCategory.forEach((a) => {
+            const card = document.createElement("div");
+            card.className = "card draggable";
+            card.draggable = true;
+            card.setAttribute("data-url", a.url);
+            card.ondragstart = (e) => handleDragStart(e, a.url);
+            card.ondragend = handleDragEnd;
+
+            const escapedTitle = escapeHtml(a.title);
+            const escapedDescription = a.description
+              ? escapeHtml(a.description)
+              : "";
+            const escapedCategory = escapeHtml(a.category);
+            const escapedSummary = a.summary ? escapeHtml(a.summary) : "";
+
+            card.innerHTML = `
+              <div>
+                <span class="category">[${escapedCategory}]</span>
+                <a href="${
+                  a.url
+                }" target="_blank" rel="noopener">${escapedTitle}</a>
+              </div>
+              ${
+                escapedDescription
+                  ? `<div class="description">${escapedDescription}</div>`
+                  : ""
+              }
+              ${
+                a.pub_date
+                  ? `<div class="pub-date">📅 ${formatDate(a.pub_date)}</div>`
+                  : ""
+              }
+              <div class="actions">
+                <button class="deselect-btn" data-url="${escapeHtml(
+                  a.url
+                )}">선택 해제</button>
+                <button class="summarize-btn" data-url="${escapeHtml(
+                  a.url
+                )}">뉴스 요약하기</button>
+              </div>
+              <div class="summary" id="s-${btoa(a.url)}">${escapedSummary}</div>
+            `;
+            const deselectBtn = card.querySelector(".deselect-btn");
+            const summarizeBtn = card.querySelector(".summarize-btn");
+            if (deselectBtn) {
+              deselectBtn.addEventListener("click", () =>
+                toggleSelect(a.url, false)
+              );
+            }
+            if (summarizeBtn) {
+              summarizeBtn.addEventListener("click", () => summarize(a.url));
+            }
+            categoryZone.appendChild(card);
+          });
+        });
       }
-      async function summarize(url) {
-        console.log("summarize 함수 호출됨, URL:", url);
+
+      function handleDragStart(event, url) {
+        event.dataTransfer.setData("text/plain", url);
+        event.dataTransfer.effectAllowed = "move";
+        event.currentTarget.style.opacity = "0.6";
+      }
+
+      function handleDragEnd(event) {
+        event.currentTarget.style.opacity = "1";
+      }
+
+      function handleDragOver(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        event.currentTarget.classList.add("drag-over");
+      }
+
+      function handleDragLeave(event) {
+        event.currentTarget.classList.remove("drag-over");
+      }
+
+      async function handleDrop(event) {
+        event.preventDefault();
+        event.currentTarget.classList.remove("drag-over");
+
+        const url = event.dataTransfer.getData("text/plain");
+        if (!url) return;
+
+        // 카테고리 영역에 드롭된 경우
+        const category = event.currentTarget.getAttribute("data-category");
+        if (category) {
+          // 이미 선택된 뉴스인 경우 카테고리만 변경
+          const res = await fetch("/api/review/list");
+          const data = await res.json();
+          const article = data.find((a) => a.url === url);
+
+          if (article && article.selected) {
+            // 이미 선택된 뉴스인 경우 카테고리만 변경
+            const categoryRes = await fetch("/api/review/category", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url, category }),
+            });
+            if (!categoryRes.ok) {
+              let errorData;
+              try {
+                errorData = await categoryRes.json();
+              } catch (e) {
+                errorData = {
+                  error: categoryRes.statusText || "Unknown error",
+                };
+              }
+              const errorMessage =
+                errorData.error?.message ||
+                (typeof errorData.error === "object"
+                  ? JSON.stringify(errorData.error)
+                  : errorData.error) ||
+                errorData.message ||
+                categoryRes.statusText;
+              console.error("카테고리 변경 API 호출 실패:", {
+                status: categoryRes.status,
+                statusText: categoryRes.statusText,
+                errorData: errorData,
+                url: url,
+                category: category,
+              });
+              alert(
+                `카테고리 변경 실패 (${categoryRes.status}): ${errorMessage}`
+              );
+              return;
+            }
+            await refresh();
+          } else {
+            // 선택되지 않은 뉴스인 경우: 카테고리 변경 후 선택 처리
+            // 카테고리를 먼저 변경한 후 선택하여 올바른 카테고리로 표시되도록 함
+            const categoryRes = await fetch("/api/review/category", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url, category }),
+            });
+            if (!categoryRes.ok) {
+              let errorData;
+              try {
+                errorData = await categoryRes.json();
+              } catch (e) {
+                errorData = {
+                  error: categoryRes.statusText || "Unknown error",
+                };
+              }
+              const errorMessage =
+                errorData.error?.message ||
+                (typeof errorData.error === "object"
+                  ? JSON.stringify(errorData.error)
+                  : errorData.error) ||
+                errorData.message ||
+                categoryRes.statusText;
+              console.error("카테고리 변경 API 호출 실패:", {
+                status: categoryRes.status,
+                statusText: categoryRes.statusText,
+                errorData: errorData,
+                url: url,
+                category: category,
+              });
+              alert(
+                `카테고리 변경 실패 (${categoryRes.status}): ${errorMessage}`
+              );
+              return;
+            }
+            // 카테고리 변경 후 선택 API 호출
+            const selectRes = await fetch("/api/review/select", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url, selected: true }),
+            });
+            if (!selectRes.ok) {
+              console.error("선택 API 호출 실패");
+              return;
+            }
+            // 변경 사항이 반영되었는지 확인
+            const verifyRes = await fetch("/api/review/list");
+            const verifyData = await verifyRes.json();
+            const verifiedArticle = verifyData.find((a) => a.url === url);
+            if (
+              verifiedArticle &&
+              verifiedArticle.selected &&
+              verifiedArticle.category === category
+            ) {
+              await refresh();
+            } else {
+              // 재시도
+              console.log("카테고리 변경 확인 실패, 재시도...");
+              await new Promise((resolve) => setTimeout(resolve, 200));
+              await refresh();
+            }
+          }
+        } else {
+          // 기존 선택 영역에 드롭된 경우 (기존 동작)
+          await toggleSelect(url, true);
+        }
+      }
+
+      async function summarizeAll() {
+        if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
         try {
+          showLoading("뉴스 요약 중...");
+          const res = await fetch("/api/review/list");
+          const data = await res.json();
+          const selectedNews = data.filter((a) => a.selected);
+
+          const toSummarize = selectedNews.filter(
+            (a) => !a.summary || a.summary.trim() === ""
+          );
+          const total = toSummarize.length;
+
+          for (let i = 0; i < toSummarize.length; i++) {
+            const a = toSummarize[i];
+            showLoading(`뉴스 요약 중... (${i + 1}/${total})`);
+            await summarize(a.url, true); // 내부 호출 플래그
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+          await refresh();
+        } catch (error) {
+          console.error("요약 중 오류:", error);
+          alert("요약 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          hideLoading();
+        }
+      }
+      async function toggleSelect(url, selected) {
+        if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
+        try {
+          showLoading(selected ? "뉴스 선택 중..." : "뉴스 선택 해제 중...");
+          await fetch("/api/review/select", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, selected }),
+          });
+          await refresh();
+        } catch (error) {
+          console.error("선택 변경 중 오류:", error);
+          alert("선택 변경 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          hideLoading();
+        }
+      }
+      async function summarize(url, isInternalCall = false) {
+        // 내부 호출(summarizeAll)이 아닌 경우에만 로딩 표시
+        if (!isInternalCall) {
+          if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
+          showLoading("뉴스 요약 중...");
+        }
+        try {
+          console.log("summarize 함수 호출됨, URL:", url);
           const res = await fetch("/api/summarize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -145,6 +717,10 @@
           if (el) {
             el.textContent = data.summary || "";
             console.log("요약 표시 완료");
+            // 선택된 뉴스 목록만 갱신 (요약이 표시된 영역만)
+            await refreshSelectedNews();
+            // 버튼 상태 업데이트
+            await updateButtons();
           } else {
             console.error(
               "요약을 표시할 요소를 찾을 수 없음, ID:",
@@ -154,21 +730,57 @@
         } catch (error) {
           console.error("요약 중 에러 발생:", error);
           alert("요약 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          if (!isInternalCall) {
+            hideLoading();
+          }
         }
       }
       async function removeItem(url) {
-        await fetch("/api/review/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
-        await refresh();
+        if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
+        try {
+          showLoading("뉴스 삭제 중...");
+          await fetch("/api/review/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
+          });
+          await refresh();
+        } catch (error) {
+          console.error("삭제 중 오류:", error);
+          alert("삭제 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          hideLoading();
+        }
       }
       async function sendSlack() {
-        const res = await fetch("/api/send-slack", { method: "POST" });
-        const data = await res.json();
-        alert(data.message || "완료");
+        if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
+        try {
+          showLoading("슬랙 발송 중...");
+          const res = await fetch("/api/send-slack", { method: "POST" });
+          const data = await res.json();
+          alert(data.message || "완료");
+        } catch (error) {
+          console.error("슬랙 발송 중 오류:", error);
+          alert("슬랙 발송 중 오류가 발생했습니다: " + error.message);
+        } finally {
+          hideLoading();
+        }
       }
+      // 드롭 존 이벤트 설정
+      document.addEventListener("DOMContentLoaded", function () {
+        // 각 카테고리 영역에 드롭 이벤트 핸들러 추가
+        const categories = ["그룹사", "업계", "참고", "읽을거리"];
+        categories.forEach((category) => {
+          const categoryZone = document.getElementById(`category-${category}`);
+          if (categoryZone) {
+            categoryZone.addEventListener("dragover", handleDragOver);
+            categoryZone.addEventListener("dragleave", handleDragLeave);
+            categoryZone.addEventListener("drop", handleDrop);
+          }
+        });
+      });
+
       // initial load
       refresh();
     </script>

@@ -66,6 +66,38 @@ def review_select():
     ok = store.set_selected(url, selected)
     return jsonify({"updated": ok})
 
+@app.route('/api/review/category', methods=['POST'])
+def review_category():
+    try:
+        data = request.get_json(silent=True) or {}
+        url = data.get("url")
+        category = data.get("category")
+        
+        if not url:
+            return jsonify({"error": "url is required"}), 400
+        if not category:
+            return jsonify({"error": "category is required"}), 400
+        
+        # 유효한 카테고리인지 확인
+        valid_categories = ["그룹사", "업계", "참고", "읽을거리"]
+        if category not in valid_categories:
+            return jsonify({"error": f"invalid category: {category}. Must be one of {valid_categories}"}), 400
+        
+        # Article 존재 여부 확인
+        article = store.get_article_by_url(url)
+        if not article:
+            return jsonify({"error": "article not found"}), 404
+        
+        ok = store.set_category(url, category)
+        if not ok:
+            return jsonify({"error": "failed to update category"}), 500
+        
+        return jsonify({"updated": ok})
+    except Exception as e:
+        import logging
+        logging.getLogger("errors").exception("Error in review_category: %s", e)
+        return jsonify({"error": {"type": e.__class__.__name__, "message": str(e)}}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
