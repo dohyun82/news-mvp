@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template, request
 from modules import crawler, gemini, slack
 from modules.store import store
 from modules.common import configure_logging, register_http_logging, register_error_handlers
-from modules.config import RealDataConfig
+from modules.config import RealDataConfig, get_default_keywords_by_category
 
 app = Flask(__name__)
 
@@ -20,6 +20,7 @@ register_error_handlers(app)
 _user_settings = {
     "keywords": None,  # None이면 환경 변수 사용
     "max_articles": None,  # None이면 환경 변수 사용
+    "category_keywords": None,  # None이면 기본 키워드 사용
 }
 
 @app.route('/api/collect', methods=['POST'])
@@ -27,11 +28,13 @@ def collect_news():
     # 저장된 사용자 설정 가져오기
     user_keywords = _user_settings["keywords"]
     user_max_articles = _user_settings["max_articles"]
+    user_category_keywords = _user_settings["category_keywords"]
     
     articles = crawler.crawl_naver_news(
         keywords=[],
         user_keywords=user_keywords,
-        user_max_articles=user_max_articles
+        user_max_articles=user_max_articles,
+        user_category_keywords=user_category_keywords
     )
     store.set_articles(articles)
     return jsonify({"count": len(articles)})
@@ -132,10 +135,23 @@ def settings_initial_values():
     
     로컬 스토리지에 값이 없을 때만 사용됩니다.
     """
+    import logging
+    logger = logging.getLogger("app")
+    
     cfg = RealDataConfig()
+    default_category_keywords = get_default_keywords_by_category()
+    
+    # 디버깅: 환경변수 값 확인
+    logger.info("Environment variables check:")
+    logger.info("  CATEGORY_GROUP_KEYWORDS: %s", cfg.group_keywords)
+    logger.info("  CATEGORY_INDUSTRY_KEYWORDS: %s", cfg.industry_keywords)
+    logger.info("  CATEGORY_REFERENCE_KEYWORDS: %s", cfg.reference_keywords)
+    logger.info("  Parsed category_keywords: %s", default_category_keywords)
+    
     return jsonify({
         "keywords": cfg.query_keywords,
         "max_articles": cfg.max_articles,
+        "category_keywords": default_category_keywords,
     })
 
 @app.route('/api/settings/save', methods=['POST'])
@@ -145,11 +161,13 @@ def settings_save():
     요청 본문:
     - keywords: 쉼표로 구분된 키워드 문자열
     - max_articles: 최대 수집 뉴스 개수 (정수)
+    - category_keywords: 카테고리별 키워드 딕셔너리 {"그룹사": ["키워드1", ...], "업계": [...], "참고": [...]}
     """
     try:
         data = request.get_json(silent=True) or {}
         keywords = data.get("keywords")
         max_articles = data.get("max_articles")
+        category_keywords = data.get("category_keywords")
         
         if keywords is not None:
             if not isinstance(keywords, str):
@@ -165,6 +183,23 @@ def settings_save():
                 return jsonify({"error": "max_articles must be an integer"}), 400
             _user_settings["max_articles"] = max_articles
         
+        if category_keywords is not None:
+            if not isinstance(category_keywords, dict):
+                return jsonify({"error": "category_keywords must be a dictionary"}), 400
+            # 유효한 카테고리인지 확인
+            valid_categories = ["그룹사", "업계", "참고"]
+            for category in category_keywords.keys():
+                if category not in valid_categories:
+                    return jsonify({"error": f"invalid category: {category}. Must be one of {valid_categories}"}), 400
+            # 각 카테고리의 값이 리스트인지 확인
+            for category, keywords_list in category_keywords.items():
+                if not isinstance(keywords_list, list):
+                    return jsonify({"error": f"category_keywords[{category}] must be a list"}), 400
+                # 리스트 내 모든 항목이 문자열인지 확인
+                if not all(isinstance(kw, str) for kw in keywords_list):
+                    return jsonify({"error": f"category_keywords[{category}] must contain only strings"}), 400
+            _user_settings["category_keywords"] = category_keywords
+        
         return jsonify({"saved": True})
     except Exception as e:
         import logging
@@ -175,15 +210,17 @@ def settings_save():
 def settings_get():
     """저장된 사용자 설정을 반환합니다.
     
-    저장된 값이 없으면 환경 변수 값을 반환합니다.
+    저장된 값이 없으면 환경 변수 값 또는 기본값을 반환합니다.
     """
     cfg = RealDataConfig()
     keywords = _user_settings["keywords"] if _user_settings["keywords"] is not None else cfg.query_keywords
     max_articles = _user_settings["max_articles"] if _user_settings["max_articles"] is not None else cfg.max_articles
+    category_keywords = _user_settings["category_keywords"] if _user_settings["category_keywords"] is not None else get_default_keywords_by_category()
     
     return jsonify({
         "keywords": keywords,
         "max_articles": max_articles,
+        "category_keywords": category_keywords,
     })
 
 if __name__ == '__main__':

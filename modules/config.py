@@ -18,8 +18,11 @@ from typing import Dict, List
 try:
     # Optional: present in requirements; safe to import.
     from dotenv import load_dotenv  # type: ignore
+    from pathlib import Path
 
-    load_dotenv()
+    # .env 파일 경로를 명시적으로 지정 (프로젝트 루트 기준)
+    env_path = Path(__file__).parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
 except Exception:
     # If dotenv is unavailable or fails, proceed with OS environment only.
     pass
@@ -56,47 +59,9 @@ class RealDataConfig:
     timeout_ms: int = int(os.getenv("NAVER_TIMEOUT_MS", "5000"))
     sort: str = os.getenv("NAVER_SORT", "sim")
     delay_ms: int = int(os.getenv("NAVER_DELAY_MS", "300"))
-
-
-# Domain: Category → Keywords mapping (from Confluence definitions)
-GROUP_NEWS_KEYWORDS: List[str] = [
-    "현대이지웰",
-    "현대백화점",
-    "현대백화점그룹",
-    "현대그린푸드",
-    "식권대장",
-    "복지대장",
-    "vendys",
-    "조정호",
-    "현대벤디스",
-]
-
-INDUSTRY_NEWS_KEYWORDS: List[str] = [
-    "모바일 식권",
-    "전자 식권",
-    "식권 앱",
-    "식권 플랫폼",
-    "식대 정산",
-    "식대 지원",
-    "기업 복지",
-    "복지 포인트",
-    "복지몰",
-    "배달 앱",
-    "배달 플랫폼",
-    "이커머스",
-    "간편식",
-    "밀키트",
-    "푸드테크",
-]
-
-REFERENCE_NEWS_KEYWORDS: List[str] = [
-    "MRO",
-    "기업 문화",
-    "사무실",
-    "업무 공간",
-    "워크플레이스",
-    "오피스",
-]
+    group_keywords: str = os.getenv("CATEGORY_GROUP_KEYWORDS", "")
+    industry_keywords: str = os.getenv("CATEGORY_INDUSTRY_KEYWORDS", "")
+    reference_keywords: str = os.getenv("CATEGORY_REFERENCE_KEYWORDS", "")
 
 
 def get_default_keywords_by_category() -> Dict[str, List[str]]:
@@ -107,12 +72,23 @@ def get_default_keywords_by_category() -> Dict[str, List[str]]:
     - 업계 뉴스
     - 참고 뉴스
     - 읽을 거리 (no fixed keywords; handled as catch-all)
-    """
 
+    환경변수에서만 키워드를 읽어옵니다.
+    환경변수가 없거나 빈 문자열이면 빈 리스트를 반환합니다.
+    """
+    cfg = RealDataConfig()
+    
+    def parse_keywords(env_value: str) -> List[str]:
+        """환경변수 값을 파싱하여 리스트로 변환. 없으면 빈 리스트 반환."""
+        if env_value and env_value.strip():
+            # 쉼표로 구분된 문자열을 리스트로 변환
+            return [kw.strip() for kw in env_value.split(",") if kw.strip()]
+        return []
+    
     return {
-        "그룹사": GROUP_NEWS_KEYWORDS,
-        "업계": INDUSTRY_NEWS_KEYWORDS,
-        "참고": REFERENCE_NEWS_KEYWORDS,
+        "그룹사": parse_keywords(cfg.group_keywords),
+        "업계": parse_keywords(cfg.industry_keywords),
+        "참고": parse_keywords(cfg.reference_keywords),
         # "읽을거리": []  # explicitly left without keywords by design
     }
 
@@ -122,9 +98,6 @@ __all__ = [
     "GeminiConfig",
     "RealDataConfig",
     "get_default_keywords_by_category",
-    "GROUP_NEWS_KEYWORDS",
-    "INDUSTRY_NEWS_KEYWORDS",
-    "REFERENCE_NEWS_KEYWORDS",
 ]
 
 

@@ -343,8 +343,8 @@
         if (loadingText) {
           loadingText.textContent = text;
         }
-        // 모든 버튼 비활성화
-        document.querySelectorAll("button").forEach((btn) => {
+        // 모든 버튼 비활성화 (설정 버튼 제외)
+        document.querySelectorAll("button:not(.settings-button)").forEach((btn) => {
           btn.disabled = true;
         });
       }
@@ -414,9 +414,14 @@
       }
 
       async function refresh() {
-        await refreshAllNews();
-        await refreshSelectedNews();
-        updateButtons();
+        // 한 번의 API 호출로 데이터 가져오기
+        const res = await fetch("/api/review/list");
+        const data = await res.json();
+        
+        // 가져온 데이터를 각 함수에 전달
+        await refreshAllNews(data);
+        await refreshSelectedNews(data);
+        updateButtons(data);
       }
 
       function getSelectedCount() {
@@ -424,10 +429,12 @@
         return selectedList ? selectedList.children.length : 0;
       }
 
-      async function updateButtons() {
-        // 선택된 뉴스 목록 가져오기
-        const res = await fetch("/api/review/list");
-        const data = await res.json();
+      async function updateButtons(data = null) {
+        // 데이터가 전달되지 않으면 API 호출
+        if (!data) {
+          const res = await fetch("/api/review/list");
+          data = await res.json();
+        }
         const selectedNews = data.filter((a) => a.selected);
 
         // 전체 뉴스 개수 확인
@@ -474,9 +481,12 @@
         return div.innerHTML;
       }
 
-      async function refreshAllNews() {
-        const res = await fetch("/api/review/list");
-        const data = await res.json();
+      async function refreshAllNews(data = null) {
+        // 데이터가 전달되지 않으면 API 호출
+        if (!data) {
+          const res = await fetch("/api/review/list");
+          data = await res.json();
+        }
         const root = document.getElementById("all-news-list");
         root.innerHTML = "";
 
@@ -533,9 +543,12 @@
         }
       }
 
-      async function refreshSelectedNews() {
-        const res = await fetch("/api/review/list");
-        const data = await res.json();
+      async function refreshSelectedNews(data = null) {
+        // 데이터가 전달되지 않으면 API 호출
+        if (!data) {
+          const res = await fetch("/api/review/list");
+          data = await res.json();
+        }
         const selectedNews = data.filter((a) => a.selected);
 
         // 카테고리별로 그룹화

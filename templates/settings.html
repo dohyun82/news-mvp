@@ -202,6 +202,25 @@
         padding: 12px;
         text-align: center;
       }
+      .category-keywords-group {
+        margin-bottom: 24px;
+        padding: 16px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+      }
+      .category-header {
+        margin-bottom: 12px;
+      }
+      .category-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+      }
+      .category-keyword-input {
+        margin-top: 0;
+      }
     </style>
   </head>
   <body>
@@ -239,6 +258,71 @@
       </div>
 
       <div class="section">
+        <div class="section-title">카테고리 분류 키워드 관리</div>
+        <div class="form-help" style="margin-bottom: 16px">
+          뉴스 제목에 포함된 키워드를 기준으로 카테고리를 자동 분류합니다.
+          여러 카테고리에 매칭되면 순서상 먼저 나오는 카테고리가 적용됩니다.
+        </div>
+        
+        <!-- 그룹사 뉴스 키워드 -->
+        <div class="category-keywords-group">
+          <div class="category-header">
+            <h3>그룹사 뉴스</h3>
+          </div>
+          <div class="form-group">
+            <div class="add-keyword-group">
+              <input
+                type="text"
+                id="keyword-input-그룹사"
+                placeholder="예: 현대백화점, 식권대장"
+                class="category-keyword-input"
+              />
+              <button onclick="addCategoryKeyword('그룹사')">추가</button>
+            </div>
+            <div id="keywords-list-그룹사" class="keywords-list"></div>
+          </div>
+        </div>
+
+        <!-- 업계 뉴스 키워드 -->
+        <div class="category-keywords-group">
+          <div class="category-header">
+            <h3>업계 뉴스</h3>
+          </div>
+          <div class="form-group">
+            <div class="add-keyword-group">
+              <input
+                type="text"
+                id="keyword-input-업계"
+                placeholder="예: 모바일 식권, 푸드테크"
+                class="category-keyword-input"
+              />
+              <button onclick="addCategoryKeyword('업계')">추가</button>
+            </div>
+            <div id="keywords-list-업계" class="keywords-list"></div>
+          </div>
+        </div>
+
+        <!-- 참고 뉴스 키워드 -->
+        <div class="category-keywords-group">
+          <div class="category-header">
+            <h3>참고 뉴스</h3>
+          </div>
+          <div class="form-group">
+            <div class="add-keyword-group">
+              <input
+                type="text"
+                id="keyword-input-참고"
+                placeholder="예: MRO, 워크플레이스"
+                class="category-keyword-input"
+              />
+              <button onclick="addCategoryKeyword('참고')">추가</button>
+            </div>
+            <div id="keywords-list-참고" class="keywords-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-title">최대 수집 뉴스 개수</div>
         <div class="form-group">
           <label for="max-articles-input">최대 수집 개수</label>
@@ -264,14 +348,23 @@
       // 로컬 스토리지 키
       const STORAGE_KEY_KEYWORDS = "newsbot_keywords";
       const STORAGE_KEY_MAX_ARTICLES = "newsbot_max_articles";
+      const STORAGE_KEY_CATEGORY_KEYWORDS = "newsbot_category_keywords";
 
       // 키워드 배열
       let keywords = [];
+      
+      // 카테고리별 키워드 딕셔너리
+      let categoryKeywords = {
+        "그룹사": [],
+        "업계": [],
+        "참고": []
+      };
 
       // 페이지 로드 시 초기화
       window.addEventListener("DOMContentLoaded", async () => {
         await loadSettings();
         renderKeywords();
+        renderCategoryKeywords();
       });
 
       // 설정 로드
@@ -322,6 +415,34 @@
             }
           } catch (e) {
             console.error("초기값 로드 실패:", e);
+          }
+        }
+
+        // 로컬 스토리지에서 카테고리별 키워드 로드
+        const storedCategoryKeywords = localStorage.getItem(
+          STORAGE_KEY_CATEGORY_KEYWORDS
+        );
+        if (storedCategoryKeywords) {
+          categoryKeywords = JSON.parse(storedCategoryKeywords);
+        } else {
+          // 로컬 스토리지에 없으면 초기값 API 호출
+          try {
+            const res = await fetch("/api/settings/initial-values");
+            const data = await res.json();
+            console.log("API 응답 데이터:", data);
+            console.log("category_keywords:", data.category_keywords);
+            if (data.category_keywords) {
+              categoryKeywords = data.category_keywords;
+              console.log("설정된 categoryKeywords:", categoryKeywords);
+              localStorage.setItem(
+                STORAGE_KEY_CATEGORY_KEYWORDS,
+                JSON.stringify(categoryKeywords)
+              );
+            } else {
+              console.warn("category_keywords가 API 응답에 없습니다.");
+            }
+          } catch (e) {
+            console.error("카테고리 키워드 초기값 로드 실패:", e);
           }
         }
       }
@@ -383,6 +504,72 @@
         });
       }
 
+      // 카테고리별 키워드 추가
+      function addCategoryKeyword(category) {
+        const input = document.getElementById(`keyword-input-${category}`);
+        const value = input.value.trim();
+
+        if (!value) {
+          showMessage("키워드를 입력해주세요.", "error");
+          return;
+        }
+
+        // 쉼표로 구분된 키워드 처리
+        const newKeywords = value
+          .split(",")
+          .map((k) => k.trim())
+          .filter((k) => k.length > 0);
+
+        // 중복 제거 및 추가
+        newKeywords.forEach((kw) => {
+          if (!categoryKeywords[category].includes(kw)) {
+            categoryKeywords[category].push(kw);
+          }
+        });
+
+        input.value = "";
+        renderCategoryKeywords();
+        showMessage(`${category} 카테고리에 키워드가 추가되었습니다.`, "success");
+      }
+
+      // 카테고리별 키워드 삭제
+      function deleteCategoryKeyword(category, keyword) {
+        categoryKeywords[category] = categoryKeywords[category].filter(
+          (k) => k !== keyword
+        );
+        renderCategoryKeywords();
+        showMessage(`${category} 카테고리에서 키워드가 삭제되었습니다.`, "success");
+      }
+
+      // 카테고리별 키워드 렌더링
+      function renderCategoryKeywords() {
+        const categories = ["그룹사", "업계", "참고"];
+        categories.forEach((category) => {
+          const container = document.getElementById(`keywords-list-${category}`);
+          if (!container) return;
+
+          container.innerHTML = "";
+
+          if (!categoryKeywords[category] || categoryKeywords[category].length === 0) {
+            container.innerHTML =
+              '<div class="empty-message">등록된 키워드가 없습니다.</div>';
+            return;
+          }
+
+          categoryKeywords[category].forEach((keyword) => {
+            const tag = document.createElement("div");
+            tag.className = "keyword-tag";
+            tag.innerHTML = `
+              <span>${escapeHtml(keyword)}</span>
+              <button class="delete-btn" onclick="deleteCategoryKeyword('${category}', '${escapeHtml(
+                keyword
+              )}')" title="삭제">×</button>
+            `;
+            container.appendChild(tag);
+          });
+        });
+      }
+
       // 설정 저장
       async function saveSettings() {
         const maxArticlesInput = document.getElementById("max-articles-input");
@@ -396,6 +583,7 @@
         // 로컬 스토리지에 저장
         localStorage.setItem(STORAGE_KEY_KEYWORDS, JSON.stringify(keywords));
         localStorage.setItem(STORAGE_KEY_MAX_ARTICLES, String(maxArticles));
+        localStorage.setItem(STORAGE_KEY_CATEGORY_KEYWORDS, JSON.stringify(categoryKeywords));
 
         // 백엔드에 저장
         try {
@@ -406,6 +594,7 @@
             body: JSON.stringify({
               keywords: keywordsString,
               max_articles: maxArticles,
+              category_keywords: categoryKeywords,
             }),
           });
 

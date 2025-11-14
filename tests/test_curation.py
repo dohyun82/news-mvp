@@ -10,12 +10,29 @@ class TestCuration(unittest.TestCase):
         self.assertEqual(normalize_title(t), "현대백화점그룹 식권대장 협력 강화")
 
     def test_deduplicate(self):
+        # 제목 기반 중복 제거 테스트
         items = [
             {"title": "현대백화점그룹 협력 강화"},
             {"title": "현대백화점그룹   협력   강화"},
         ]
         result = deduplicate(items)
         self.assertEqual(len(result), 1)
+        
+        # URL 기반 중복 제거 테스트
+        items_with_url = [
+            {"title": "현대백화점그룹 협력 강화", "url": "http://example.com/1"},
+            {"title": "다른 제목", "url": "http://example.com/1"},  # 같은 URL, 다른 제목
+        ]
+        result = deduplicate(items_with_url)
+        self.assertEqual(len(result), 1)  # URL이 같으므로 중복으로 처리
+        
+        # 제목과 URL 모두 다른 경우 (중복 아님)
+        items_different = [
+            {"title": "현대백화점그룹 협력 강화", "url": "http://example.com/1"},
+            {"title": "다른 제목", "url": "http://example.com/2"},  # 다른 URL, 다른 제목
+        ]
+        result = deduplicate(items_different)
+        self.assertEqual(len(result), 2)  # 둘 다 유지
 
     def test_map_category(self):
         kws = get_default_keywords_by_category()

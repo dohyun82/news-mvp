@@ -63,17 +63,33 @@ def is_advertorial(title: str) -> bool:
 
 
 def deduplicate(articles: Iterable[Dict[str, str]]) -> List[Dict[str, str]]:
-    """Deduplicate articles by normalized title.
+    """Deduplicate articles by normalized title and URL.
 
+    중복 판단 기준:
+    1. URL이 있으면 URL 기준으로 중복 체크 (같은 URL이면 같은 기사로 간주)
+    2. 제목 기준으로도 중복 체크 (정규화된 제목이 같으면 같은 기사로 간주)
+    
     Keep the first occurrence.
     """
 
-    seen = set()
+    seen_titles = set()
+    seen_urls = set()
     result: List[Dict[str, str]] = []
     for art in articles:
-        norm = normalize_title(art.get("title", ""))
-        if norm and norm not in seen:
-            seen.add(norm)
+        url = art.get("url", "").strip()
+        norm_title = normalize_title(art.get("title", ""))
+        
+        # URL이 있으면 URL 기준으로 중복 체크
+        # 같은 URL이면 제목이 달라도 같은 기사로 간주
+        if url and url in seen_urls:
+            continue
+        
+        # 제목 기준 중복 체크
+        # 정규화된 제목이 같으면 같은 기사로 간주
+        if norm_title and norm_title not in seen_titles:
+            seen_titles.add(norm_title)
+            if url:
+                seen_urls.add(url)
             result.append(art)
     return result
 

@@ -44,7 +44,7 @@ def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, ti
     return results
 
 
-def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user_max_articles: int = None) -> List[Dict[str, str]]:
+def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user_max_articles: int = None, user_category_keywords: Dict[str, List[str]] = None) -> List[Dict[str, str]]:
     """
     Collect news by keywords. MVP phase uses stubbed data; replace with
     real crawling (requests/feeds) later.
@@ -53,6 +53,7 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
         keywords: 기존 키워드 리스트 (하위 호환성 유지)
         user_keywords: 사용자가 설정한 키워드 (쉼표 구분 문자열, 우선순위 높음)
         user_max_articles: 사용자가 설정한 최대 수집 개수 (우선순위 높음)
+        user_category_keywords: 사용자가 설정한 카테고리별 키워드 딕셔너리 (우선순위 높음)
 
     Returns curated list with categories and basic dedup/filters applied.
     """
@@ -143,7 +144,12 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
             },
         ]
 
-    keywords_by_category = get_default_keywords_by_category()
+    # 카테고리별 키워드: 사용자 설정 > 기본값
+    if user_category_keywords is not None:
+        keywords_by_category = user_category_keywords
+    else:
+        keywords_by_category = get_default_keywords_by_category()
+    
     result = curate(raw_articles, keywords_by_category)
     return result
 
