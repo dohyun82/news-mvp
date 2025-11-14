@@ -16,12 +16,20 @@
         margin: 0;
         padding: 0;
         overflow: hidden;
+        box-sizing: border-box;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
         padding: 24px;
         display: flex;
         flex-direction: column;
+        background-color: #f5f5f5;
+        position: relative;
       }
       h1 {
         margin-bottom: 12px;
@@ -38,6 +46,10 @@
         align-items: flex-start;
         flex: 1;
         min-height: 0;
+        background-color: white;
+        padding: 24px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
       .news-section {
         min-width: 0;
@@ -65,6 +77,12 @@
         padding: 12px;
         border-radius: 8px;
         margin-bottom: 12px;
+        background-color: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: box-shadow 0.2s;
+      }
+      .card:hover {
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       }
       .draggable {
         cursor: grab;
@@ -85,6 +103,10 @@
         flex-direction: column;
         height: 100%;
         min-height: 0;
+        background-color: white;
+        padding: 12px;
+        border-radius: 6px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       }
       .category-section h3 {
         margin: 0 0 8px 0;
@@ -98,7 +120,7 @@
         padding: 16px;
         border: 2px dashed #ccc;
         border-radius: 8px;
-        background-color: #f9f9f9;
+        background-color: #f8f9fa;
         transition: all 0.2s ease;
         min-height: 0;
       }
@@ -124,6 +146,23 @@
       .actions button {
         margin-right: 8px;
       }
+      button {
+        padding: 8px 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s;
+      }
+      button:hover:not(:disabled) {
+        background-color: #0056b3;
+      }
+      button:active:not(:disabled) {
+        background-color: #004085;
+      }
       .category {
         font-weight: bold;
         margin-right: 8px;
@@ -146,8 +185,9 @@
         margin-bottom: 8px;
       }
       button:disabled {
-        opacity: 0.5;
+        background-color: #6c757d;
         cursor: not-allowed;
+        opacity: 1;
       }
       .loading-overlay {
         position: fixed;
@@ -190,9 +230,33 @@
         flex-direction: column;
         align-items: center;
       }
+      .settings-button {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        padding: 8px 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s;
+        z-index: 1000;
+      }
+      .settings-button:hover {
+        background-color: #0056b3;
+      }
+      .settings-button:active {
+        background-color: #004085;
+      }
     </style>
   </head>
   <body>
+    <button class="settings-button" onclick="window.location.href='/settings'">
+      설정
+    </button>
     <div id="loading-overlay" class="loading-overlay">
       <div class="loading-content">
         <div class="loading-spinner"></div>
@@ -204,8 +268,11 @@
         <div class="section-header">
           <h2>전체 뉴스 목록</h2>
         </div>
-        <div style="margin-bottom: 12px">
+        <div style="margin-bottom: 12px; display: flex; gap: 8px">
           <button id="collect-btn" onclick="collect()">뉴스 수집</button>
+          <button id="reset-btn" onclick="resetCollection()" disabled>
+            초기화
+          </button>
         </div>
         <div
           id="all-news-list"
@@ -219,10 +286,10 @@
         </div>
         <div style="margin-bottom: 12px">
           <button id="summarize-all-btn" onclick="summarizeAll()" disabled>
-            뉴스 요약하기
+            뉴스 요약
           </button>
           <button id="send-slack-btn" onclick="sendSlack()" disabled>
-            슬랙으로 발송
+            슬랙 전송
           </button>
         </div>
         <div id="selected-news-list" class="selected-news-container">
@@ -297,12 +364,37 @@
         try {
           showLoading("뉴스 수집 중...");
           await fetch("/api/collect", { method: "POST" });
-          await refresh();
+          await refresh(); // refresh()에서 updateButtons()가 호출되어 버튼 상태가 자동 업데이트됨
         } catch (error) {
           console.error("뉴스 수집 중 오류:", error);
           alert("뉴스 수집 중 오류가 발생했습니다: " + error.message);
+          // 에러 발생 시에도 버튼 상태 업데이트
+          await updateButtons();
         } finally {
           hideLoading();
+        }
+      }
+
+      async function resetCollection() {
+        // 모든 뉴스 삭제 API 호출
+        try {
+          const res = await fetch("/api/review/list");
+          const data = await res.json();
+
+          // 모든 뉴스 삭제
+          for (const article of data) {
+            await fetch("/api/review/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: article.url }),
+            });
+          }
+
+          // UI 새로고침 및 버튼 상태 업데이트
+          await refresh();
+        } catch (error) {
+          console.error("초기화 중 오류:", error);
+          alert("초기화 중 오류가 발생했습니다: " + error.message);
         }
       }
       // 날짜 포맷팅 함수 (RFC 822 형식을 사용자 친화적 형식으로 변환)
@@ -338,6 +430,21 @@
         const data = await res.json();
         const selectedNews = data.filter((a) => a.selected);
 
+        // 전체 뉴스 개수 확인
+        const hasNews = data.length > 0;
+
+        // 뉴스 수집 버튼: 검색된 뉴스가 없을 때만 활성화
+        const collectBtn = document.getElementById("collect-btn");
+        if (collectBtn) {
+          collectBtn.disabled = hasNews;
+        }
+
+        // 초기화 버튼: 검색된 뉴스가 있을 때만 활성화 (수집 버튼과 정반대)
+        const resetBtn = document.getElementById("reset-btn");
+        if (resetBtn) {
+          resetBtn.disabled = !hasNews;
+        }
+
         // 요약이 안 된 뉴스가 있는지 확인
         const hasUnsummarized = selectedNews.some(
           (a) => !a.summary || a.summary.trim() === ""
@@ -348,7 +455,7 @@
           selectedNews.length > 0 &&
           selectedNews.every((a) => a.summary && a.summary.trim() !== "");
 
-        // 뉴스 요약하기 버튼: 요약이 안 된 뉴스가 있는 경우에만 활성화
+        // 뉴스 요약 버튼: 요약이 안 된 뉴스가 있는 경우에만 활성화
         const summarizeBtn = document.getElementById("summarize-all-btn");
         if (summarizeBtn) {
           summarizeBtn.disabled = !hasUnsummarized || selectedNews.length === 0;
@@ -494,7 +601,7 @@
                 )}">선택 해제</button>
                 <button class="summarize-btn" data-url="${escapeHtml(
                   a.url
-                )}">뉴스 요약하기</button>
+                )}">뉴스 요약</button>
               </div>
               <div class="summary" id="s-${btoa(a.url)}">${escapedSummary}</div>
             `;
@@ -768,7 +875,9 @@
         }
       }
       // 드롭 존 이벤트 설정
-      document.addEventListener("DOMContentLoaded", function () {
+      document.addEventListener("DOMContentLoaded", async function () {
+        // 페이지 로드 시 초기 버튼 상태 업데이트
+        await updateButtons();
         // 각 카테고리 영역에 드롭 이벤트 핸들러 추가
         const categories = ["그룹사", "업계", "참고", "읽을거리"];
         categories.forEach((category) => {

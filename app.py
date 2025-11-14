@@ -2,6 +2,7 @@ from flask import Flask, jsonify, render_template, request
 from modules import crawler, gemini, slack
 from modules.store import store
 from modules.common import configure_logging, register_http_logging, register_error_handlers
+from modules.config import RealDataConfig
 
 app = Flask(__name__)
 
@@ -14,9 +15,24 @@ configure_logging()
 register_http_logging(app)
 register_error_handlers(app)
 
+# 사용자 설정 저장소 (인메모리, 서버 재시작 시 초기화됨)
+# 환경 변수는 초기값 제공용으로만 사용
+_user_settings = {
+    "keywords": None,  # None이면 환경 변수 사용
+    "max_articles": None,  # None이면 환경 변수 사용
+}
+
 @app.route('/api/collect', methods=['POST'])
 def collect_news():
-    articles = crawler.crawl_naver_news([])
+    # 저장된 사용자 설정 가져오기
+    user_keywords = _user_settings["keywords"]
+    user_max_articles = _user_settings["max_articles"]
+    
+    articles = crawler.crawl_naver_news(
+        keywords=[],
+        user_keywords=user_keywords,
+        user_max_articles=user_max_articles
+    )
     store.set_articles(articles)
     return jsonify({"count": len(articles)})
 
@@ -105,6 +121,70 @@ def index():
 @app.route('/review')
 def review_page():
     return render_template('review.html')
+
+@app.route('/settings')
+def settings_page():
+    return render_template('settings.html')
+
+@app.route('/api/settings/initial-values', methods=['GET'])
+def settings_initial_values():
+    """환경 변수에서 초기값을 읽어서 반환합니다.
+    
+    로컬 스토리지에 값이 없을 때만 사용됩니다.
+    """
+    cfg = RealDataConfig()
+    return jsonify({
+        "keywords": cfg.query_keywords,
+        "max_articles": cfg.max_articles,
+    })
+
+@app.route('/api/settings/save', methods=['POST'])
+def settings_save():
+    """사용자 설정을 저장합니다.
+    
+    요청 본문:
+    - keywords: 쉼표로 구분된 키워드 문자열
+    - max_articles: 최대 수집 뉴스 개수 (정수)
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        keywords = data.get("keywords")
+        max_articles = data.get("max_articles")
+        
+        if keywords is not None:
+            if not isinstance(keywords, str):
+                return jsonify({"error": "keywords must be a string"}), 400
+            _user_settings["keywords"] = keywords
+        
+        if max_articles is not None:
+            try:
+                max_articles = int(max_articles)
+                if max_articles <= 0:
+                    return jsonify({"error": "max_articles must be a positive integer"}), 400
+            except (ValueError, TypeError):
+                return jsonify({"error": "max_articles must be an integer"}), 400
+            _user_settings["max_articles"] = max_articles
+        
+        return jsonify({"saved": True})
+    except Exception as e:
+        import logging
+        logging.getLogger("errors").exception("Error in settings_save: %s", e)
+        return jsonify({"error": {"type": e.__class__.__name__, "message": str(e)}}), 500
+
+@app.route('/api/settings/get', methods=['GET'])
+def settings_get():
+    """저장된 사용자 설정을 반환합니다.
+    
+    저장된 값이 없으면 환경 변수 값을 반환합니다.
+    """
+    cfg = RealDataConfig()
+    keywords = _user_settings["keywords"] if _user_settings["keywords"] is not None else cfg.query_keywords
+    max_articles = _user_settings["max_articles"] if _user_settings["max_articles"] is not None else cfg.max_articles
+    
+    return jsonify({
+        "keywords": keywords,
+        "max_articles": max_articles,
+    })
 
 if __name__ == '__main__':
     # 개발 모드: 코드 변경 시 자동 리로드 활성화

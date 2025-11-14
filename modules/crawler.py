@@ -44,10 +44,15 @@ def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, ti
     return results
 
 
-def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
+def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user_max_articles: int = None) -> List[Dict[str, str]]:
     """
     Collect news by keywords. MVP phase uses stubbed data; replace with
     real crawling (requests/feeds) later.
+
+    Args:
+        keywords: 기존 키워드 리스트 (하위 호환성 유지)
+        user_keywords: 사용자가 설정한 키워드 (쉼표 구분 문자열, 우선순위 높음)
+        user_max_articles: 사용자가 설정한 최대 수집 개수 (우선순위 높음)
 
     Returns curated list with categories and basic dedup/filters applied.
     """
@@ -57,9 +62,21 @@ def crawl_naver_news(keywords: List[str]) -> List[Dict[str, str]]:
     logger.info("crawl_naver_news started (realdata toggle: %s)", cfg.enabled)
     raw_articles: List[Dict[str, str]] = []
     if cfg.enabled and cfg.client_id and cfg.client_secret:
-        # 실데이터 경로: 키워드 목록(ENV 또는 인자) 기준으로 호출
-        kw_list = [k.strip() for k in (cfg.query_keywords or ",".join(keywords)).split(",") if k.strip()]
-        remaining = cfg.max_articles
+        # 사용자 설정이 있으면 우선 사용, 없으면 환경 변수 또는 인자 사용
+        if user_keywords:
+            kw_list = [k.strip() for k in user_keywords.split(",") if k.strip()]
+        elif cfg.query_keywords:
+            kw_list = [k.strip() for k in cfg.query_keywords.split(",") if k.strip()]
+        elif keywords:
+            kw_list = [k.strip() for k in keywords if k.strip()]
+        else:
+            kw_list = []
+        
+        # 최대 수집 개수: 사용자 설정 > 환경 변수 > 기본값
+        if user_max_articles is not None:
+            remaining = user_max_articles
+        else:
+            remaining = cfg.max_articles
         started = time.perf_counter()
         failures = 0
         for kw in kw_list:
