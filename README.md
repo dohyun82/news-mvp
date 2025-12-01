@@ -45,6 +45,8 @@
 
 ## 3. 빠른 시작
 
+### macOS / Linux 환경
+
 아래 순서대로 실행합니다.
 
 ```bash
@@ -62,6 +64,51 @@ cp .env.sample .env
 flask --app app run --host=0.0.0.0 --port 5001
 # 참고: 백그라운드 실행/서버 종료/venv 비활성화는 아래 '개발 메모 > 개발 명령어 치트시트' 참조
 ```
+
+### Windows 환경
+
+**PowerShell 사용 시:**
+
+```powershell
+# 1) 가상환경 생성 및 활성화
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# 2) 의존성 설치
+pip install -r requirements.txt
+
+# 3) 환경변수 파일 생성 (샘플 복사)
+Copy-Item .env.sample .env
+
+# 4) 서버 실행 (포트 5001)
+flask --app app run --host=0.0.0.0 --port 5001
+```
+
+**명령 프롬프트(CMD) 사용 시:**
+
+```cmd
+# 1) 가상환경 생성 및 활성화
+python -m venv venv
+venv\Scripts\activate.bat
+
+# 2) 의존성 설치
+pip install -r requirements.txt
+
+# 3) 환경변수 파일 생성 (샘플 복사)
+copy .env.sample .env
+
+# 4) 서버 실행 (포트 5001)
+flask --app app run --host=0.0.0.0 --port 5001
+```
+
+**Windows 주의사항:**
+
+- PowerShell에서 스크립트 실행이 차단된 경우:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+- Python이 설치되어 있지 않은 경우: [Python 공식 사이트](https://www.python.org/downloads/)에서 Python 3.9 이상을 다운로드하여 설치하세요.
+- `python` 명령어가 인식되지 않는 경우: 설치 시 "Add Python to PATH" 옵션을 선택했는지 확인하거나, 전체 경로를 사용하세요 (예: `C:\Python39\python.exe`).
 
 브라우저에서 `http://127.0.0.1:5001` 접속 후 초기 페이지가 보이면 성공입니다.
 
@@ -107,6 +154,8 @@ curl -X POST http://127.0.0.1:5001/api/send-slack
 
 ### 개발 명령어 치트시트
 
+#### macOS / Linux
+
 ```bash
 # 가상환경 생성/활성화/비활성화
 python3 -m venv venv
@@ -126,6 +175,52 @@ if [ -f .flask.pid ]; then kill $(cat .flask.pid); fi
 # 서버 재기동 (백그라운드)
 if [ -f .flask.pid ]; then kill $(cat .flask.pid); fi \
   && flask --app app run --host=0.0.0.0 --port 5001 > .flask.log 2>&1 & echo $! > .flask.pid
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# 가상환경 생성/활성화/비활성화
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+deactivate
+
+# 의존성 설치
+pip install -r requirements.txt
+
+# 서버 실행 (포그라운드)
+flask --app app run --host=0.0.0.0 --port 5001
+
+# 서버 실행 (백그라운드 - 새 PowerShell 창에서)
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; .\venv\Scripts\Activate.ps1; flask --app app run --host=0.0.0.0 --port 5001"
+
+# 서버 종료 (포트 5001 사용 프로세스 종료)
+Get-Process | Where-Object {$_.Path -like "*python*"} | Stop-Process -Force
+# 또는 특정 포트 사용 프로세스 종료
+netstat -ano | findstr :5001
+taskkill /PID <PID번호> /F
+```
+
+#### Windows (CMD)
+
+```cmd
+# 가상환경 생성/활성화/비활성화
+python -m venv venv
+venv\Scripts\activate.bat
+deactivate
+
+# 의존성 설치
+pip install -r requirements.txt
+
+# 서버 실행 (포그라운드)
+flask --app app run --host=0.0.0.0 --port 5001
+
+# 서버 실행 (백그라운드 - 새 CMD 창에서)
+start cmd /k "cd /d %CD% && venv\Scripts\activate.bat && flask --app app run --host=0.0.0.0 --port 5001"
+
+# 서버 종료 (포트 5001 사용 프로세스 종료)
+netstat -ano | findstr :5001
+taskkill /PID <PID번호> /F
 ```
 
 ## 7. 참고 문서
