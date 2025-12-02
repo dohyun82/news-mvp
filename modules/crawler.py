@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 import json
+import html
 import urllib.parse
 import urllib.request
 import time
@@ -30,10 +31,13 @@ def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, ti
     items = data.get("items", [])
     results: List[Dict[str, str]] = []
     for it in items:
+        # HTML 태그 제거 및 HTML 엔티티 디코딩
         title = it.get("title", "").replace("<b>", "").replace("</b>", "")
+        title = html.unescape(title)  # HTML 엔티티 디코딩 (&quot; -> ")
         url = it.get("originallink") or it.get("link") or ""
         # 네이버 API에서 제공하는 description (기사 요약 정보)
         description = it.get("description", "").replace("<b>", "").replace("</b>", "").strip()
+        description = html.unescape(description)  # HTML 엔티티 디코딩
         # 네이버 API에서 제공하는 발행일 (나중에 사용할 수 있도록 저장)
         pub_date = it.get("pubDate", "").strip()
         if title and url:
