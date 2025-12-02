@@ -10,8 +10,9 @@ import logging
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
-from .config import get_default_keywords_by_category, RealDataConfig
+from .config import RealDataConfig
 from .curation import curate
+from . import keyword_store
 
 
 def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, timeout: int,
@@ -116,22 +117,25 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
     logger.info("crawl_naver_news started (realdata toggle: %s)", cfg.enabled)
     raw_articles: List[Dict[str, str]] = []
     if cfg.enabled and cfg.client_id and cfg.client_secret:
-        # 사용자 설정이 있으면 우선 사용, 없으면 환경 변수 또는 인자 사용
+        # 키워드 우선순위: 사용자 설정 > keyword_store > 함수 인자
         if user_keywords:
             kw_list = [k.strip() for k in user_keywords.split(",") if k.strip()]
-        elif cfg.query_keywords:
-            kw_list = [k.strip() for k in cfg.query_keywords.split(",") if k.strip()]
-        elif keywords:
-            kw_list = [k.strip() for k in keywords if k.strip()]
         else:
-            kw_list = []
+            # keyword_store에서 키워드 가져오기
+            stored_keywords = keyword_store.get_query_keywords()
+            if stored_keywords:
+                kw_list = [k.strip() for k in stored_keywords.split(",") if k.strip()]
+            elif keywords:
+                kw_list = [k.strip() for k in keywords if k.strip()]
+            else:
+                kw_list = []
         
-        # 최대 수집 개수: 사용자 설정 > 환경 변수 > 기본값
+        # 최대 수집 개수: 사용자 설정 > keyword_store
         # 각 키워드마다 이 개수만큼 수집 (전체 합계가 아님)
         if user_max_articles is not None:
             max_per_keyword = user_max_articles
         else:
-            max_per_keyword = cfg.max_articles
+            max_per_keyword = keyword_store.get_max_articles()
         started = time.perf_counter()
         failures = 0
         for kw in kw_list:
@@ -203,21 +207,21 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
             },
         ]
 
-    # 최대 기사 나이 필터링: 사용자 설정 > 환경 변수
+    # 최대 기사 나이 필터링: 사용자 설정 > keyword_store
     if user_max_age_hours is not None:
         max_age_hours = user_max_age_hours
     else:
-        max_age_hours = cfg.max_news_age_hours
+        max_age_hours = keyword_store.get_max_age_hours()
     
     # 시간 기반 필터링 적용
     raw_articles = _filter_by_age(raw_articles, max_age_hours)
     logger.info("after age filtering: %d articles", len(raw_articles))
 
-    # 카테고리별 키워드: 사용자 설정 > 기본값
+    # 카테고리별 키워드: 사용자 설정 > keyword_store
     if user_category_keywords is not None:
         keywords_by_category = user_category_keywords
     else:
-        keywords_by_category = get_default_keywords_by_category()
+        keywords_by_category = keyword_store.get_category_keywords()
     
     result = curate(raw_articles, keywords_by_category)
     return result

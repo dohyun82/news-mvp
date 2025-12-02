@@ -248,9 +248,7 @@
         </div>
         <div class="form-group">
           <label>등록된 키워드 목록</label>
-          <div class="form-help">
-            키워드를 클릭하여 삭제할 수 있습니다.
-          </div>
+          <div class="form-help">키워드를 클릭하여 삭제할 수 있습니다.</div>
           <div id="keywords-list" class="keywords-list">
             <div class="empty-message">등록된 키워드가 없습니다.</div>
           </div>
@@ -260,10 +258,10 @@
       <div class="section">
         <div class="section-title">카테고리 분류 키워드 관리</div>
         <div class="form-help" style="margin-bottom: 16px">
-          뉴스 제목에 포함된 키워드를 기준으로 카테고리를 자동 분류합니다.
-          여러 카테고리에 매칭되면 순서상 먼저 나오는 카테고리가 적용됩니다.
+          뉴스 제목에 포함된 키워드를 기준으로 카테고리를 자동 분류합니다. 여러
+          카테고리에 매칭되면 순서상 먼저 나오는 카테고리가 적용됩니다.
         </div>
-        
+
         <!-- 그룹사 뉴스 키워드 -->
         <div class="category-keywords-group">
           <div class="category-header">
@@ -344,7 +342,8 @@
         <div class="form-group">
           <label for="max-age-hours-input">최대 조회 시간 (시간)</label>
           <div class="form-help">
-            설정한 시간 이전에 발행된 뉴스는 수집하지 않습니다. 0으로 설정하면 시간 제한이 없습니다.
+            설정한 시간 이전에 발행된 뉴스는 수집하지 않습니다. 0으로 설정하면
+            시간 제한이 없습니다.
           </div>
           <input
             type="number"
@@ -363,23 +362,17 @@
     </div>
 
     <script>
-      // 로컬 스토리지 키
-      const STORAGE_KEY_KEYWORDS = "newsbot_keywords";
-      const STORAGE_KEY_MAX_ARTICLES = "newsbot_max_articles";
-      const STORAGE_KEY_CATEGORY_KEYWORDS = "newsbot_category_keywords";
-      const STORAGE_KEY_MAX_AGE_HOURS = "newsbot_max_age_hours";
-
-      // 키워드 배열
+      // 키워드 배열 (서버에서 로드)
       let keywords = [];
-      
-      // 카테고리별 키워드 딕셔너리
+
+      // 카테고리별 키워드 딕셔너리 (서버에서 로드)
       let categoryKeywords = {
-        "그룹사": [],
-        "업계": [],
-        "참고": []
+        그룹사: [],
+        업계: [],
+        참고: [],
       };
 
-      // 최대 기사 나이 (시간)
+      // 최대 기사 나이 (시간, 서버에서 로드)
       let maxAgeHours = 24;
 
       // 페이지 로드 시 초기화
@@ -389,108 +382,55 @@
         renderCategoryKeywords();
       });
 
-      // 설정 로드
+      // 설정 로드 (서버의 keyword_store에서만 읽어옴)
       async function loadSettings() {
-        // 로컬 스토리지에서 키워드 로드
-        const storedKeywords = localStorage.getItem(STORAGE_KEY_KEYWORDS);
-        if (storedKeywords) {
-          keywords = JSON.parse(storedKeywords);
-        } else {
-          // 로컬 스토리지에 없으면 초기값 API 호출
-          try {
-            const res = await fetch("/api/settings/initial-values");
-            const data = await res.json();
-            if (data.keywords) {
-              keywords = data.keywords
-                .split(",")
-                .map((k) => k.trim())
-                .filter((k) => k.length > 0);
-              localStorage.setItem(
-                STORAGE_KEY_KEYWORDS,
-                JSON.stringify(keywords)
-              );
-            }
-          } catch (e) {
-            console.error("초기값 로드 실패:", e);
+        try {
+          // 서버의 keyword_store에서 설정 가져오기
+          const res = await fetch("/api/settings/get");
+          if (!res.ok) {
+            throw new Error("설정 로드 실패");
           }
-        }
+          const data = await res.json();
 
-        // 로컬 스토리지에서 최대 수집 개수 로드
-        const storedMaxArticles = localStorage.getItem(
-          STORAGE_KEY_MAX_ARTICLES
-        );
-        if (storedMaxArticles) {
-          document.getElementById("max-articles-input").value =
-            storedMaxArticles;
-        } else {
-          // 로컬 스토리지에 없으면 초기값 API 호출
-          try {
-            const res = await fetch("/api/settings/initial-values");
-            const data = await res.json();
-            if (data.max_articles) {
-              document.getElementById("max-articles-input").value =
-                data.max_articles;
-              localStorage.setItem(
-                STORAGE_KEY_MAX_ARTICLES,
-                String(data.max_articles)
-              );
-            }
-          } catch (e) {
-            console.error("초기값 로드 실패:", e);
+          // 뉴스 검색 키워드 로드
+          if (data.keywords) {
+            keywords = data.keywords
+              .split(",")
+              .map((k) => k.trim())
+              .filter((k) => k.length > 0);
+          } else {
+            keywords = [];
           }
-        }
 
-        // 로컬 스토리지에서 카테고리별 키워드 로드
-        const storedCategoryKeywords = localStorage.getItem(
-          STORAGE_KEY_CATEGORY_KEYWORDS
-        );
-        if (storedCategoryKeywords) {
-          categoryKeywords = JSON.parse(storedCategoryKeywords);
-        } else {
-          // 로컬 스토리지에 없으면 초기값 API 호출
-          try {
-            const res = await fetch("/api/settings/initial-values");
-            const data = await res.json();
-            console.log("API 응답 데이터:", data);
-            console.log("category_keywords:", data.category_keywords);
-            if (data.category_keywords) {
-              categoryKeywords = data.category_keywords;
-              console.log("설정된 categoryKeywords:", categoryKeywords);
-              localStorage.setItem(
-                STORAGE_KEY_CATEGORY_KEYWORDS,
-                JSON.stringify(categoryKeywords)
-              );
-            } else {
-              console.warn("category_keywords가 API 응답에 없습니다.");
-            }
-          } catch (e) {
-            console.error("카테고리 키워드 초기값 로드 실패:", e);
+          // 최대 수집 개수 로드
+          if (data.max_articles !== undefined) {
+            document.getElementById("max-articles-input").value =
+              data.max_articles;
           }
-        }
 
-        // 로컬 스토리지에서 최대 기사 나이 로드
-        const storedMaxAgeHours = localStorage.getItem(
-          STORAGE_KEY_MAX_AGE_HOURS
-        );
-        if (storedMaxAgeHours) {
-          maxAgeHours = parseInt(storedMaxAgeHours, 10);
-          document.getElementById("max-age-hours-input").value = maxAgeHours;
-        } else {
-          // 로컬 스토리지에 없으면 초기값 API 호출
-          try {
-            const res = await fetch("/api/settings/initial-values");
-            const data = await res.json();
-            if (data.max_age_hours !== undefined) {
-              maxAgeHours = parseInt(data.max_age_hours, 10);
-              document.getElementById("max-age-hours-input").value = maxAgeHours;
-              localStorage.setItem(
-                STORAGE_KEY_MAX_AGE_HOURS,
-                String(maxAgeHours)
-              );
-            }
-          } catch (e) {
-            console.error("최대 기사 나이 초기값 로드 실패:", e);
+          // 카테고리별 키워드 로드
+          if (data.category_keywords) {
+            categoryKeywords = {
+              그룹사: data.category_keywords["그룹사"] || [],
+              업계: data.category_keywords["업계"] || [],
+              참고: data.category_keywords["참고"] || [],
+            };
+          } else {
+            categoryKeywords = {
+              그룹사: [],
+              업계: [],
+              참고: [],
+            };
           }
+
+          // 최대 기사 나이 로드
+          if (data.max_age_hours !== undefined) {
+            maxAgeHours = parseInt(data.max_age_hours, 10);
+            document.getElementById("max-age-hours-input").value = maxAgeHours;
+          }
+        } catch (e) {
+          console.error("설정 로드 실패:", e);
+          showMessage("설정을 불러오는 중 오류가 발생했습니다.", "error");
         }
       }
 
@@ -576,7 +516,10 @@
 
         input.value = "";
         renderCategoryKeywords();
-        showMessage(`${category} 카테고리에 키워드가 추가되었습니다.`, "success");
+        showMessage(
+          `${category} 카테고리에 키워드가 추가되었습니다.`,
+          "success"
+        );
       }
 
       // 카테고리별 키워드 삭제
@@ -585,19 +528,27 @@
           (k) => k !== keyword
         );
         renderCategoryKeywords();
-        showMessage(`${category} 카테고리에서 키워드가 삭제되었습니다.`, "success");
+        showMessage(
+          `${category} 카테고리에서 키워드가 삭제되었습니다.`,
+          "success"
+        );
       }
 
       // 카테고리별 키워드 렌더링
       function renderCategoryKeywords() {
         const categories = ["그룹사", "업계", "참고"];
         categories.forEach((category) => {
-          const container = document.getElementById(`keywords-list-${category}`);
+          const container = document.getElementById(
+            `keywords-list-${category}`
+          );
           if (!container) return;
 
           container.innerHTML = "";
 
-          if (!categoryKeywords[category] || categoryKeywords[category].length === 0) {
+          if (
+            !categoryKeywords[category] ||
+            categoryKeywords[category].length === 0
+          ) {
             container.innerHTML =
               '<div class="empty-message">등록된 키워드가 없습니다.</div>';
             return;
@@ -609,8 +560,8 @@
             tag.innerHTML = `
               <span>${escapeHtml(keyword)}</span>
               <button class="delete-btn" onclick="deleteCategoryKeyword('${category}', '${escapeHtml(
-                keyword
-              )}')" title="삭제">×</button>
+              keyword
+            )}')" title="삭제">×</button>
             `;
             container.appendChild(tag);
           });
@@ -635,13 +586,7 @@
           return;
         }
 
-        // 로컬 스토리지에 저장
-        localStorage.setItem(STORAGE_KEY_KEYWORDS, JSON.stringify(keywords));
-        localStorage.setItem(STORAGE_KEY_MAX_ARTICLES, String(maxArticles));
-        localStorage.setItem(STORAGE_KEY_CATEGORY_KEYWORDS, JSON.stringify(categoryKeywords));
-        localStorage.setItem(STORAGE_KEY_MAX_AGE_HOURS, String(maxAgeHours));
-
-        // 백엔드에 저장
+        // 서버의 keyword_store에 저장 (SSOT 원칙 준수)
         try {
           const keywordsString = keywords.join(",");
           const res = await fetch("/api/settings/save", {
@@ -698,4 +643,3 @@
     </script>
   </body>
 </html>
-

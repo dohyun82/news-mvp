@@ -116,19 +116,17 @@ flask --app app run --host=0.0.0.0 --port 5001
 
 `.env.sample`을 참고하여 `.env`를 생성합니다.
 
-| 키                        | 설명                                                  |
-| ------------------------- | ----------------------------------------------------- | ----- |
-| `GEMINI_API_KEY`          | 요약용 외부 모델(예: Gemini) 호출 시 사용하는 API 키  |
-| `SLACK_BOT_TOKEN`         | 슬랙 봇 토큰                                          |
-| `SLACK_CHANNEL_ID`        | 메시지를 보낼 기본 채널 ID                            |
-| `REALDATA_ENABLED`        | 실데이터(네이버 뉴스 API) 사용 여부(true/false)       |
-| `NAVER_API_CLIENT_ID`     | 네이버 검색 API 클라이언트 ID                         |
-| `NAVER_API_CLIENT_SECRET` | 네이버 검색 API 클라이언트 시크릿                     |
-| `NAVER_QUERY_KEYWORDS`    | 쉼표 구분 키워드 목록(예: 현대백화점,식권대장,vendys) |
-| `NAVER_MAX_ARTICLES`      | 최대 수집 기사 수(카테고리 합)                        |
-| `NAVER_TIMEOUT_MS`        | 네이버 API 호출 타임아웃(ms)                          |
-| `NAVER_SORT`              | 정렬(sim                                              | date) |
-| `NAVER_DELAY_MS`          | 키워드 호출 간 대기(ms)                               |
+| 키                        | 설명                                                 |
+| ------------------------- | ---------------------------------------------------- | ----- |
+| `GEMINI_API_KEY`          | 요약용 외부 모델(예: Gemini) 호출 시 사용하는 API 키 |
+| `SLACK_BOT_TOKEN`         | 슬랙 봇 토큰                                         |
+| `SLACK_CHANNEL_ID`        | 메시지를 보낼 기본 채널 ID                           |
+| `REALDATA_ENABLED`        | 실데이터(네이버 뉴스 API) 사용 여부(true/false)      |
+| `NAVER_API_CLIENT_ID`     | 네이버 검색 API 클라이언트 ID                        |
+| `NAVER_API_CLIENT_SECRET` | 네이버 검색 API 클라이언트 시크릿                    |
+| `NAVER_TIMEOUT_MS`        | 네이버 API 호출 타임아웃(ms)                         |
+| `NAVER_SORT`              | 정렬(sim                                             | date) |
+| `NAVER_DELAY_MS`          | 키워드 호출 간 대기(ms)                              |
 
 초기 실행 단계에서는 실제 키가 없어도 서버 기동과 라우트 연결 확인에는 문제가 없습니다.
 

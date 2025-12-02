@@ -1,21 +1,30 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 class TestIntegrationRealData(unittest.TestCase):
     @patch("modules.crawler._fetch_naver_news_api")
+    @patch("modules.crawler.keyword_store")
     @patch("modules.config.RealDataConfig")
-    def test_realdata_flow_curate_and_category(self, MockCfg, mock_fetch):
+    def test_realdata_flow_curate_and_category(self, MockCfg, mock_keyword_store, mock_fetch):
         # Configure RealDataConfig to enable realdata path
         cfg = MockCfg.return_value
         cfg.enabled = True
         cfg.client_id = "id"
         cfg.client_secret = "secret"
-        cfg.query_keywords = "현대백화점"
-        cfg.max_articles = 5
         cfg.timeout_ms = 3000
         cfg.sort = "sim"
         cfg.delay_ms = 0
+        
+        # Configure keyword_store mock
+        mock_keyword_store.get_query_keywords.return_value = "현대백화점"
+        mock_keyword_store.get_max_articles.return_value = 5
+        mock_keyword_store.get_max_age_hours.return_value = 24
+        mock_keyword_store.get_category_keywords.return_value = {
+            "그룹사": ["현대백화점"],
+            "업계": [],
+            "참고": []
+        }
 
         # Mock API response items
         mock_fetch.return_value = [

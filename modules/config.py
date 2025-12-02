@@ -1,12 +1,11 @@
 """
 Purpose: Centralized configuration and domain constants for NewsBot.
 
-Why: Provide single sources of truth for keywords-to-category mapping and
-environment-driven settings. This enables consistent behavior across modules
-without scattering magic strings.
+Why: Provide single sources of truth for API keys and environment-driven settings.
+Keywords are now managed via keyword_store module (JSON file-based), not environment variables.
 
 How: Load environment variables using python-dotenv when available, expose
-typed accessors and domain dictionaries (e.g., keywords per category).
+typed accessors. Keywords are accessed via keyword_store module.
 """
 
 from __future__ import annotations
@@ -49,49 +48,41 @@ class GeminiConfig:
 
 @dataclass(frozen=True)
 class RealDataConfig:
-    """Configuration for real data fetching via Naver Search API."""
+    """Configuration for real data fetching via Naver Search API.
+    
+    Note: Keywords (query_keywords, category_keywords), max_articles, and
+    max_age_hours are now managed via keyword_store module (JSON file-based),
+    not environment variables. This class only contains API credentials and
+    technical settings (timeout, sort, delay).
+    """
 
     enabled: bool = os.getenv("REALDATA_ENABLED", "false").lower() == "true"
     client_id: str = os.getenv("NAVER_API_CLIENT_ID", "")
     client_secret: str = os.getenv("NAVER_API_CLIENT_SECRET", "")
-    query_keywords: str = os.getenv("NAVER_QUERY_KEYWORDS", "")
-    max_articles: int = int(os.getenv("NAVER_MAX_ARTICLES", "30"))
     timeout_ms: int = int(os.getenv("NAVER_TIMEOUT_MS", "5000"))
     sort: str = os.getenv("NAVER_SORT", "sim")
     delay_ms: int = int(os.getenv("NAVER_DELAY_MS", "300"))
-    group_keywords: str = os.getenv("CATEGORY_GROUP_KEYWORDS", "")
-    industry_keywords: str = os.getenv("CATEGORY_INDUSTRY_KEYWORDS", "")
-    reference_keywords: str = os.getenv("CATEGORY_REFERENCE_KEYWORDS", "")
-    max_news_age_hours: int = int(os.getenv("NEWS_MAX_AGE_HOURS", "24"))
 
 
 def get_default_keywords_by_category() -> Dict[str, List[str]]:
-    """Return the default mapping of category → keywords.
-
+    """Return the mapping of category → keywords.
+    
     Categories follow the product domain:
     - 그룹사 뉴스
     - 업계 뉴스
     - 참고 뉴스
     - 읽을 거리 (no fixed keywords; handled as catch-all)
-
-    환경변수에서만 키워드를 읽어옵니다.
-    환경변수가 없거나 빈 문자열이면 빈 리스트를 반환합니다.
+    
+    Note: This function now uses keyword_store module (JSON file-based) instead
+    of environment variables. This maintains backward compatibility for existing
+    code that calls this function.
+    
+    Returns:
+        카테고리별 키워드 딕셔너리
     """
-    cfg = RealDataConfig()
-    
-    def parse_keywords(env_value: str) -> List[str]:
-        """환경변수 값을 파싱하여 리스트로 변환. 없으면 빈 리스트 반환."""
-        if env_value and env_value.strip():
-            # 쉼표로 구분된 문자열을 리스트로 변환
-            return [kw.strip() for kw in env_value.split(",") if kw.strip()]
-        return []
-    
-    return {
-        "그룹사": parse_keywords(cfg.group_keywords),
-        "업계": parse_keywords(cfg.industry_keywords),
-        "참고": parse_keywords(cfg.reference_keywords),
-        # "읽을거리": []  # explicitly left without keywords by design
-    }
+    # keyword_store 모듈을 동적으로 import하여 순환 참조 방지
+    from . import keyword_store
+    return keyword_store.get_category_keywords()
 
 
 __all__ = [
