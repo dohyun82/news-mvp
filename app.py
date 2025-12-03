@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template, request
-from modules import crawler, gemini, slack
+from modules import crawler, openai, slack
 from modules.store import store
 from modules.common import configure_logging, register_http_logging, register_error_handlers
 from modules.config import RealDataConfig
@@ -47,8 +47,8 @@ def summarize_news():
     article = store.get_article_by_url(url)
     title = article.title if article else None
     
-    # Gemini API 호출 (제목이 있으면 함께 전달)
-    summary = gemini.get_summary_from_gemini(url, title=title)
+    # OpenAI API 호출 (제목이 있으면 함께 전달)
+    summary = openai.get_summary_from_openai(url, title=title)
     store.set_summary(url, summary)
     return jsonify({"url": url, "summary": summary})
 

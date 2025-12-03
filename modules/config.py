@@ -40,10 +40,10 @@ class SlackConfig:
 
 
 @dataclass(frozen=True)
-class GeminiConfig:
-    """Configuration values for the summarization provider (e.g., Gemini)."""
+class OpenAIConfig:
+    """Configuration values for the summarization provider (e.g., OpenAI)."""
 
-    api_key: str = os.getenv("GEMINI_API_KEY", "")
+    api_key: str = os.getenv("OPENAI_API_KEY", "")
 
 
 @dataclass(frozen=True)
@@ -87,7 +87,7 @@ def get_default_keywords_by_category() -> Dict[str, List[str]]:
 
 __all__ = [
     "SlackConfig",
-    "GeminiConfig",
+    "OpenAIConfig",
     "RealDataConfig",
     "get_default_keywords_by_category",
 ]

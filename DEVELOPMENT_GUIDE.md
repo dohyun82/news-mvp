@@ -35,7 +35,7 @@
 - **예시**: `modules/` 폴더는 패키지입니다. `modules/__init__.py` 파일이 있어서 가능합니다.
 - **사용법**:
   ```python
-  from modules import crawler, gemini, slack  # 패키지에서 여러 모듈 가져오기
+  from modules import crawler, openai, slack  # 패키지에서 여러 모듈 가져오기
   ```
 
 #### 함수 (Function)
@@ -180,7 +180,7 @@ news-mvp/
 │   ├── config.py         # 설정 관리 (환경 변수, 상수)
 │   ├── crawler.py        # 뉴스 수집 로직
 │   ├── curation.py       # 뉴스 큐레이션 로직
-│   ├── gemini.py         # Gemini API 연동 (요약 생성)
+│   ├── openai.py         # OpenAI API 연동 (요약 생성)
 │   ├── slack.py          # Slack API 연동 (메시지 발송)
 │   └── store.py          # 인메모리 데이터 저장소
 ├── templates/            # HTML 템플릿 파일들
@@ -217,7 +217,7 @@ news-mvp/
 - **역할**: 실제 기능을 구현하는 코드들이 모여있습니다.
 - **설계 원칙**: 각 모듈은 하나의 책임만 가집니다 (Single Responsibility Principle)
   - `crawler.py`: 뉴스 수집만 담당
-  - `gemini.py`: 요약 생성만 담당
+  - `openai.py`: 요약 생성만 담당
   - `slack.py`: Slack 발송만 담당
 
 #### `templates/` - HTML 템플릿
@@ -580,7 +580,7 @@ store = InMemoryStore()  # 애플리케이션 전체에서 공유하는 단일 �
 
 ```python
 from flask import Flask, jsonify, render_template, request
-from modules import crawler, gemini, slack
+from modules import crawler, openai, slack
 from modules.store import store
 from modules.common import configure_logging, register_http_logging, register_error_handlers
 ```
@@ -629,7 +629,7 @@ def summarize_news():
     article = store.get_article_by_url(url)     # 저장소에서 기사 조회
     title = article.title if article else None  # 제목 추출 (있으면)
 
-    summary = gemini.get_summary_from_gemini(url, title=title)  # Gemini API 호출
+    summary = openai.get_summary_from_openai(url, title=title)  # OpenAI API 호출
     store.set_summary(url, summary)             # 요약 저장
     return jsonify({"url": url, "summary": summary})
 ```
@@ -638,7 +638,7 @@ def summarize_news():
   1. 요청 본문에서 URL 추출
   2. URL이 없으면 400 에러 반환
   3. 저장소에서 기사 정보 조회
-  4. Gemini API로 요약 생성
+  4. OpenAI API로 요약 생성
   5. 요약을 저장소에 저장하고 반환
 
 **`GET /api/review/list`** - 기사 목록 조회

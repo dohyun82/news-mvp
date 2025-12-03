@@ -59,18 +59,13 @@ def register_http_logging(app) -> None:
 def register_error_handlers(app) -> None:
     """Register a generic JSON error handler for unexpected exceptions."""
 
-    @app.errorhandler(404)
-    def _handle_404(err):  # type: ignore[override]
-        """404 에러는 JSON이 아닌 기본 Flask 404 처리"""
-        from flask import abort
-        abort(404)
-
     @app.errorhandler(Exception)
     def _handle_exception(err: Exception):  # type: ignore[override]
-        # 404는 제외 (Flask 기본 처리 사용)
+        # 404는 Flask 기본 처리 사용 (재귀 방지)
         from werkzeug.exceptions import NotFound
         if isinstance(err, NotFound):
-            raise err
+            # Flask의 기본 404 응답을 그대로 사용
+            return err.get_response()
         
         logging.getLogger("errors").exception("Unhandled exception: %s", err)
         return (

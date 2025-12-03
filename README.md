@@ -30,7 +30,7 @@
   modules/
     __init__.py
     crawler.py
-    gemini.py
+    openai.py
     slack.py
   templates/
     index.html
@@ -118,7 +118,7 @@ flask --app app run --host=0.0.0.0 --port 5001
 
 | 키                        | 설명                                                 |
 | ------------------------- | ---------------------------------------------------- | ----- |
-| `GEMINI_API_KEY`          | 요약용 외부 모델(예: Gemini) 호출 시 사용하는 API 키 |
+| `OPENAI_API_KEY`          | 요약용 외부 모델(예: OpenAI) 호출 시 사용하는 API 키 |
 | `SLACK_BOT_TOKEN`         | 슬랙 봇 토큰                                         |
 | `SLACK_CHANNEL_ID`        | 메시지를 보낼 기본 채널 ID                           |
 | `REALDATA_ENABLED`        | 실데이터(네이버 뉴스 API) 사용 여부(true/false)      |
@@ -246,7 +246,7 @@ taskkill /PID <PID번호> /F
 
 1. [수동] 검토 페이지에서 `뉴스 수집` 클릭 → 키워드 기반 수집 및 자동 분류/1차 중복 제거
 2. [수동] 목록 검토 및 불필요 기사 제거, 발행 대상 확정
-3. [수동] `뉴스 요약하기` 클릭 → Gemini API 3~5줄 요약 생성
+3. [수동] `뉴스 요약하기` 클릭 → OpenAI API 3~5줄 요약 생성
 4. [수동] `슬랙으로 발송` 클릭 → `#new_biz`로 즉시 발송 (1일 1회)
 
 ### 8.3 운영 정책
