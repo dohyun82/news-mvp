@@ -96,6 +96,7 @@ def build_datadog_query(
     user_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     service: Optional[str] = None,
+    app_installation: Optional[str] = None,
     additional_query: Optional[str] = None
 ) -> str:
     """Build Datadog query string from filter parameters.
@@ -107,6 +108,7 @@ def build_datadog_query(
         user_id: 사용자 ID 필터 (ua-user-id 필드)
         customer_id: 고객사 ID 필터 (ua-com-id 필드)
         service: 서비스 필터 (service 필드, 쉼표로 구분된 여러 서비스 지원)
+        app_installation: 앱 설치 ID 필터 (app-installation 필드)
         additional_query: 추가 쿼리 텍스트 (기존 텍스트 쿼리 방식)
         
     Returns:
@@ -138,6 +140,10 @@ def build_datadog_query(
     # 고객사 ID 필터 추가
     if customer_id:
         query_parts.append(f"@ua-com-id:{customer_id}")
+    
+    # 앱 설치 ID 필터 추가
+    if app_installation:
+        query_parts.append(f"@app-installation:{app_installation}")
     
     # 추가 쿼리 텍스트가 있으면 추가
     if additional_query:
@@ -188,6 +194,7 @@ def analyze_logs_with_ai(
     user_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     service: Optional[str] = None,
+    app_installation: Optional[str] = None,
     cs_content: Optional[str] = None
 ) -> Dict:
     """Analyze logs using AI and generate structured CS response suggestions.
@@ -203,6 +210,7 @@ def analyze_logs_with_ai(
         user_id: 사용자 ID (쿼리 생성 시 사용)
         customer_id: 고객사 ID (쿼리 생성 시 사용)
         service: 서비스 이름 (쿼리 생성 시 사용, 쉼표로 구분된 여러 서비스 지원)
+        app_installation: 앱 설치 ID (쿼리 생성 시 사용)
         cs_content: 고객 CS 내용 (선택사항, AI 분석 시 함께 고려)
         
     Returns:
@@ -215,11 +223,12 @@ def analyze_logs_with_ai(
         - error_patterns: 발견된 에러 패턴 (리스트)
     """
     # 쿼리가 비어있고 필터 파라미터가 있으면 쿼리 생성
-    if not query.strip() and (user_id or customer_id or service):
+    if not query.strip() and (user_id or customer_id or service or app_installation):
         query = build_datadog_query(
             user_id=user_id,
             customer_id=customer_id,
-            service=service
+            service=service,
+            app_installation=app_installation
         )
     
     # Datadog에서 로그 조회

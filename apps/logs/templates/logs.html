@@ -1,12 +1,17 @@
 {% extends "base.html" %} {% block title %}로그 분석 - AIF 자동화앱{% endblock
 %} {% block extra_styles %} /* 로그 분석 페이지 전용 스타일 */ .logs-container {
-padding: 24px; } .query-section { background-color: white; padding: 24px;
-border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); margin-bottom:
-24px; } .filter-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-margin-bottom: 16px; } .filter-form .form-group { display: flex; flex-direction:
-column; } .filter-form label { margin-bottom: 6px; font-weight: 500; color:
-#333; font-size: 14px; } .filter-form input, .filter-form select { padding:
-10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+padding: 24px; } /* 쿼리 영역과 결과 영역을 좌우로 배치하는 컨테이너 */
+.query-results-wrapper { display: flex; gap: 24px; margin-bottom: 24px;
+flex-wrap: wrap; } /* 작은 화면에서는 상하 배치 */ @media (max-width: 1024px) {
+.query-results-wrapper { flex-direction: column; } } .query-section {
+background-color: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px
+4px rgba(0, 0, 0, 0.1); flex: 0 0 500px; min-width: 500px; } /* 작은 화면에서는
+전체 너비 사용 */ @media (max-width: 1024px) { .query-section { flex: 1 1 100%;
+min-width: 0; } } .filter-form { display: grid; grid-template-columns: 1fr; gap:
+16px; margin-bottom: 16px; } .filter-form .form-group { display: flex;
+flex-direction: column; } .filter-form label { margin-bottom: 6px; font-weight:
+500; color: #333; font-size: 14px; } .filter-form input, .filter-form select {
+padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
 .filter-form.full-width { grid-column: 1 / -1; } .query-form { display: flex;
 gap: 12px; margin-bottom: 16px; } .query-form input { flex: 1; padding: 10px;
 border: 1px solid #ddd; border-radius: 6px; font-size: 14px; } .query-form
@@ -16,21 +21,31 @@ color: #007bff; cursor: pointer; text-decoration: underline; font-size: 14px;
 padding: 0; } .advanced-options { display: none; margin-top: 16px; padding-top:
 16px; border-top: 1px solid #eee; } .advanced-options.show { display: block; }
 .results-section { background-color: white; padding: 24px; border-radius: 8px;
-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); } .log-entry { padding: 12px;
-border-bottom: 1px solid #eee; font-family: monospace; font-size: 13px; }
-.log-entry:last-child { border-bottom: none; } .log-entry div { word-break:
-break-word; } .analysis-section { background-color: #f8f9fa; padding: 20px;
-border-radius: 8px; margin-top: 24px; } .analysis-section h3 { margin-top: 0;
-color: #333; } .analysis-section h4 { margin-top: 20px; margin-bottom: 12px;
-color: #555; } .analysis-block { background-color: white; padding: 16px;
-border-radius: 6px; margin-bottom: 16px; border-left: 4px solid #007bff; }
-.analysis-block h5 { margin-top: 0; margin-bottom: 8px; color: #333; font-size:
-16px; } .analysis-block p, .analysis-block div { margin: 0; line-height: 1.6;
-color: #555; white-space: pre-wrap; } .suggestion-item { padding: 8px 12px;
+box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); flex: 1 1 0; min-width: 0; overflow:
+hidden; } /* 결과 영역의 높이를 제한하여 스크롤 가능하게 */ .results-section h2
+{ margin-top: 0; } #logs-container { max-height: calc(100vh - 300px);
+overflow-y: auto; } /* 조회 결과와 AI 분석 결과를 좌우로 배치하는 컨테이너 */
+.results-wrapper { display: flex; gap: 24px; flex: 1 1 0; min-width: 0; } /*
+작은 화면에서는 상하 배치 */ @media (max-width: 1024px) { .results-wrapper {
+flex-direction: column; } } .results-section, .analysis-section { flex: 1 1 0;
+min-width: 0; overflow: hidden; } .analysis-section { background-color: #f8f9fa;
+padding: 20px; border-radius: 8px; display: block; } .analysis-section h3 {
+margin-top: 0; color: #333; } #analysis-placeholder { display: block; } /* AI
+분석 결과 영역 스크롤 */ .analysis-content { max-height: calc(100vh - 300px);
+overflow-y: auto; } .log-entry { padding: 12px; border-bottom: 1px solid #eee;
+font-family: monospace; font-size: 13px; } .log-entry:last-child {
+border-bottom: none; } .log-entry div { word-break: break-word; }
+.analysis-section h4 { margin-top: 20px; margin-bottom: 12px; color: #555; }
+.analysis-block { background-color: white; padding: 16px; border-radius: 6px;
+margin-bottom: 16px; border-left: 4px solid #007bff; } .analysis-block h5 {
+margin-top: 0; margin-bottom: 8px; color: #333; font-size: 16px; }
+.analysis-block p, .analysis-block div { margin: 0; line-height: 1.6; color:
+#555; white-space: pre-wrap; } .suggestion-item { padding: 8px 12px;
 background-color: white; border-left: 3px solid #007bff; margin-bottom: 8px;
 border-radius: 4px; } .error-pattern-item { padding: 6px 10px; background-color:
 #fff3cd; border-left: 3px solid #ffc107; margin-bottom: 6px; border-radius: 4px;
-font-size: 13px; } {% endblock %} {% block content %}
+font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
+#666; cursor: not-allowed; opacity: 0.6; } {% endblock %} {% block content %}
 <div class="logs-container">
   <h1>로그 분석</h1>
   <p>
@@ -38,133 +53,188 @@ font-size: 13px; } {% endblock %} {% block content %}
     대응에 도움을 줍니다.
   </p>
 
-  <div class="query-section">
-    <h2>로그 쿼리</h2>
+  <!-- 쿼리 영역과 결과 영역을 좌우로 배치하는 wrapper -->
+  <div class="query-results-wrapper">
+    <div class="query-section">
+      <h2>로그 쿼리</h2>
 
-    <!-- 구조화된 필터 폼 -->
-    <div class="filter-form">
-      <div class="form-group">
-        <label for="from-time">시작 시간</label>
-        <input type="datetime-local" id="from-time" />
+      <!-- 구조화된 필터 폼 -->
+      <div class="filter-form">
+        <div class="form-group">
+          <label for="service">서비스 (service)</label>
+          <input
+            type="text"
+            id="service"
+            placeholder="예: sikdae-android, sikdae-ios"
+            value="sikdae-android, sikdae-ios"
+          />
+        </div>
+        <div class="form-group">
+          <label for="from-time">시작 시간</label>
+          <input type="datetime-local" id="from-time" />
+        </div>
+        <div class="form-group">
+          <label for="to-time">종료 시간</label>
+          <input type="datetime-local" id="to-time" />
+        </div>
+        <div class="form-group">
+          <label for="app-installation"
+            >앱 설치 ID (app-installation)
+            <span style="color: #dc3545">*</span></label
+          >
+          <input
+            type="text"
+            id="app-installation"
+            placeholder="예: abc123-def456-ghi789"
+            minlength="10"
+          />
+        </div>
+        <div class="form-group">
+          <label for="user-id"
+            >사용자 ID (ua-user-id) <span style="color: #dc3545">*</span></label
+          >
+          <input
+            type="text"
+            id="user-id"
+            placeholder="예: 12345"
+            minlength="10"
+          />
+        </div>
+        <div class="form-group">
+          <label for="customer-id"
+            >고객사 ID (ua-com-id) <span style="color: #dc3545">*</span></label
+          >
+          <input
+            type="text"
+            id="customer-id"
+            placeholder="예: COM001"
+            minlength="10"
+          />
+        </div>
       </div>
-      <div class="form-group">
-        <label for="to-time">종료 시간</label>
-        <input type="datetime-local" id="to-time" />
-      </div>
-      <div class="form-group">
-        <label for="user-id">사용자 ID (ua-user-id)</label>
-        <input type="text" id="user-id" placeholder="예: 12345" />
-      </div>
-      <div class="form-group">
-        <label for="customer-id">고객사 ID (ua-com-id)</label>
-        <input type="text" id="customer-id" placeholder="예: COM001" />
-      </div>
-      <div class="form-group">
-        <label for="service">서비스 (service)</label>
-        <input
-          type="text"
-          id="service"
-          placeholder="예: payment-service, websocket-service"
-        />
-      </div>
-    </div>
 
-    <!-- CS 내용 입력 (AI 분석 시 사용) -->
-    <div class="cs-content-section" style="margin-top: 20px">
-      <h3 style="margin-bottom: 8px; font-size: 16px; color: #333">
-        고객 CS 내용 (선택사항)
-      </h3>
-      <p style="font-size: 12px; color: #666; margin-bottom: 8px">
-        고객이 문의한 내용을 입력하면 AI 분석 시 함께 고려하여 더 정확한 대응
-        제안을 받을 수 있습니다.
-      </p>
-      <textarea
-        id="cs-content"
-        rows="4"
-        placeholder="예: 결제가 완료되지 않았는데 결제 완료 메시지가 표시되었습니다. 환불이 필요합니다."
-        style="
-          width: 100%;
-          padding: 8px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-family: inherit;
-          font-size: 14px;
-          resize: vertical;
-        "
-      ></textarea>
-    </div>
+      <!-- 고급 옵션 (기존 텍스트 쿼리) -->
+      <div class="advanced-toggle">
+        <button type="button" onclick="toggleAdvanced()">
+          <span id="advanced-toggle-text">고급 옵션 보기</span>
+        </button>
+      </div>
+      <div class="advanced-options" id="advanced-options">
+        <div class="form-group full-width">
+          <label for="query-input">추가 쿼리 (Datadog 쿼리 형식)</label>
+          <input
+            type="text"
+            id="query-input"
+            placeholder="예: status:error level:error"
+          />
+        </div>
+      </div>
 
-    <!-- 고급 옵션 (기존 텍스트 쿼리) -->
-    <div class="advanced-toggle">
-      <button type="button" onclick="toggleAdvanced()">
-        <span id="advanced-toggle-text">고급 옵션 보기</span>
-      </button>
-    </div>
-    <div class="advanced-options" id="advanced-options">
-      <div class="form-group full-width">
-        <label for="query-input">추가 쿼리 (Datadog 쿼리 형식)</label>
-        <input
-          type="text"
-          id="query-input"
-          placeholder="예: status:error level:error"
-        />
+      <!-- 조회 버튼 -->
+      <div class="query-form">
+        <button id="query-btn" onclick="queryLogs()" disabled>조회</button>
+      </div>
+
+      <div
+        id="query-status"
+        style="color: #666; font-size: 14px; margin-top: 8px"
+      ></div>
+
+      <!-- CS 내용 입력 (AI 분석 시 사용) -->
+      <div class="cs-content-section" style="margin-top: 24px">
+        <h3 style="margin-bottom: 8px; font-size: 16px; color: #333">
+          고객 CS 내용 <span style="color: #dc3545">*</span>
+        </h3>
+        <p style="font-size: 12px; color: #666; margin-bottom: 8px">
+          고객이 문의한 내용을 입력하세요. 10자 이상 입력해야 합니다.
+        </p>
+        <textarea
+          id="cs-content"
+          rows="4"
+          placeholder="예: 결제가 완료되지 않았는데 결제 완료 메시지가 표시되었습니다. 환불이 필요합니다."
+          required
+          minlength="10"
+          style="
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+          "
+        ></textarea>
+      </div>
+
+      <!-- AI 분석 버튼 -->
+      <div class="query-form" style="margin-top: 16px">
+        <button id="analyze-btn" onclick="analyzeLogs()" disabled>
+          AI 분석
+        </button>
       </div>
     </div>
 
-    <!-- 조회/분석 버튼 -->
-    <div class="query-form">
-      <button onclick="queryLogs()">조회</button>
-      <button onclick="analyzeLogs()">AI 분석</button>
-    </div>
+    <div class="results-wrapper">
+      <div class="results-section">
+        <h2>로그 조회 결과</h2>
+        <div id="logs-container">
+          <p style="color: #999">쿼리를 입력하고 조회 버튼을 클릭하세요.</p>
+        </div>
+      </div>
 
-    <div
-      id="query-status"
-      style="color: #666; font-size: 14px; margin-top: 8px"
-    ></div>
-  </div>
+      <div class="analysis-section" id="analysis-section">
+        <h3>AI 분석 결과</h3>
+        <div class="analysis-content">
+          <div
+            id="analysis-placeholder"
+            style="color: #999; padding: 20px; text-align: center"
+          >
+            AI 분석 버튼을 클릭하면 분석 결과가 표시됩니다.
+          </div>
 
-  <div class="results-section">
-    <h2>조회 결과</h2>
-    <div id="logs-container">
-      <p style="color: #999">쿼리를 입력하고 조회 버튼을 클릭하세요.</p>
-    </div>
-  </div>
+          <!-- 문제점 요약 -->
+          <div
+            class="analysis-block"
+            id="problem-summary-block"
+            style="display: none"
+          >
+            <h5>문제점 요약</h5>
+            <div id="problem-summary"></div>
+          </div>
 
-  <div class="analysis-section" id="analysis-section" style="display: none">
-    <h3>AI 분석 결과</h3>
+          <!-- 원인 추적 -->
+          <div
+            class="analysis-block"
+            id="root-cause-block"
+            style="display: none"
+          >
+            <h5>원인 추적</h5>
+            <div id="root-cause"></div>
+          </div>
 
-    <!-- 문제점 요약 -->
-    <div
-      class="analysis-block"
-      id="problem-summary-block"
-      style="display: none"
-    >
-      <h5>문제점 요약</h5>
-      <div id="problem-summary"></div>
-    </div>
+          <!-- 사용자 행동 분석 -->
+          <div
+            class="analysis-block"
+            id="user-behavior-block"
+            style="display: none"
+          >
+            <h5>사용자 행동 분석</h5>
+            <div id="user-behavior"></div>
+          </div>
 
-    <!-- 원인 추적 -->
-    <div class="analysis-block" id="root-cause-block" style="display: none">
-      <h5>원인 추적</h5>
-      <div id="root-cause"></div>
-    </div>
+          <!-- CS 대응 제안 -->
+          <div id="cs-suggestions-block" style="display: none">
+            <h4>CS 대응 제안</h4>
+            <div id="cs-suggestions"></div>
+          </div>
 
-    <!-- 사용자 행동 분석 -->
-    <div class="analysis-block" id="user-behavior-block" style="display: none">
-      <h5>사용자 행동 분석</h5>
-      <div id="user-behavior"></div>
-    </div>
-
-    <!-- CS 대응 제안 -->
-    <div id="cs-suggestions-block" style="display: none">
-      <h4>CS 대응 제안</h4>
-      <div id="cs-suggestions"></div>
-    </div>
-
-    <!-- 에러 패턴 -->
-    <div id="error-patterns-block" style="display: none">
-      <h4>발견된 에러 패턴</h4>
-      <div id="error-patterns"></div>
+          <!-- 에러 패턴 -->
+          <div id="error-patterns-block" style="display: none">
+            <h4>발견된 에러 패턴</h4>
+            <div id="error-patterns"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -187,6 +257,9 @@ font-size: 13px; } {% endblock %} {% block content %}
     const userId = document.getElementById("user-id").value.trim();
     const customerId = document.getElementById("customer-id").value.trim();
     const service = document.getElementById("service").value.trim();
+    const appInstallation = document
+      .getElementById("app-installation")
+      .value.trim();
     const query = document.getElementById("query-input").value.trim();
     const csContent = document.getElementById("cs-content").value.trim();
 
@@ -210,31 +283,88 @@ font-size: 13px; } {% endblock %} {% block content %}
     if (service) {
       data.service = service;
     }
+    if (appInstallation) {
+      data.app_installation = appInstallation;
+    }
     if (query) {
       data.query = query;
     }
+    // CS 내용은 필수이므로 항상 포함
     if (csContent) {
       data.cs_content = csContent;
+    } else {
+      data.cs_content = "";
     }
 
     return data;
   }
 
-  // 필터 검증
+  // 필터 검증 (조회용)
   function validateFilters() {
     const userId = document.getElementById("user-id").value.trim();
     const customerId = document.getElementById("customer-id").value.trim();
-    const service = document.getElementById("service").value.trim();
-    const query = document.getElementById("query-input").value.trim();
+    const appInstallation = document
+      .getElementById("app-installation")
+      .value.trim();
 
-    if (!userId && !customerId && !service && !query) {
+    // 앱 설치 ID, 사용자 ID, 고객사 ID 중 하나는 10자 이상 입력되어야 함
+    const hasAppInstallation = appInstallation.length >= 10;
+    const hasUserId = userId.length >= 10;
+    const hasCustomerId = customerId.length >= 10;
+
+    if (!hasAppInstallation && !hasUserId && !hasCustomerId) {
       alert(
-        "사용자 ID, 고객사 ID, 서비스 또는 추가 쿼리 중 하나는 입력해야 합니다."
+        "앱 설치 ID, 사용자 ID, 고객사 ID 중 하나는 10자 이상 입력해야 합니다."
       );
       return false;
     }
 
     return true;
+  }
+
+  // 필터 검증 (AI 분석용)
+  function validateFiltersForAnalysis() {
+    // 조회 검증 먼저 수행
+    if (!validateFilters()) {
+      return false;
+    }
+
+    const csContent = document.getElementById("cs-content").value.trim();
+
+    // 고객 CS 내용 필수 검증 (10자 이상)
+    if (!csContent || csContent.length < 10) {
+      alert("고객 CS 내용을 10자 이상 입력해주세요.");
+      document.getElementById("cs-content").focus();
+      return false;
+    }
+
+    return true;
+  }
+
+  // 버튼 활성화/비활성화 검증 함수
+  function checkButtonState() {
+    const userId = document.getElementById("user-id").value.trim();
+    const customerId = document.getElementById("customer-id").value.trim();
+    const appInstallation = document
+      .getElementById("app-installation")
+      .value.trim();
+    const csContent = document.getElementById("cs-content").value.trim();
+
+    // 앱 설치 ID, 사용자 ID, 고객사 ID 중 하나는 10자 이상 입력되어야 함
+    const hasAppInstallation = appInstallation.length >= 10;
+    const hasUserId = userId.length >= 10;
+    const hasCustomerId = customerId.length >= 10;
+    const hasRequiredId = hasAppInstallation || hasUserId || hasCustomerId;
+
+    // CS 내용도 10자 이상 입력되어야 함
+    const hasValidCsContent = csContent.length >= 10;
+
+    // 조회 버튼: ID 필드 중 하나만 10자 이상이면 활성화
+    document.getElementById("query-btn").disabled = !hasRequiredId;
+
+    // AI 분석 버튼: ID 필드 중 하나와 CS 내용 모두 10자 이상이어야 활성화
+    document.getElementById("analyze-btn").disabled =
+      !hasRequiredId || !hasValidCsContent;
   }
 
   async function queryLogs() {
@@ -271,7 +401,7 @@ font-size: 13px; } {% endblock %} {% block content %}
   }
 
   async function analyzeLogs() {
-    if (!validateFilters()) {
+    if (!validateFiltersForAnalysis()) {
       return;
     }
 
@@ -385,8 +515,11 @@ font-size: 13px; } {% endblock %} {% block content %}
   }
 
   function displayAnalysis(data) {
-    const analysisSection = document.getElementById("analysis-section");
-    analysisSection.style.display = "block";
+    // 플레이스홀더 숨기기
+    const placeholder = document.getElementById("analysis-placeholder");
+    if (placeholder) {
+      placeholder.style.display = "none";
+    }
 
     // 문제점 요약
     const problemSummary = data.problem_summary || "";
@@ -474,6 +607,7 @@ font-size: 13px; } {% endblock %} {% block content %}
       document.getElementById("user-id"),
       document.getElementById("customer-id"),
       document.getElementById("service"),
+      document.getElementById("app-installation"),
       document.getElementById("query-input"),
     ];
 
@@ -486,6 +620,28 @@ font-size: 13px; } {% endblock %} {% block content %}
         });
       }
     });
+
+    // 앱 설치 ID, 사용자 ID, 고객사 ID, CS 내용 필드에 실시간 검증 이벤트 추가
+    const requiredFields = [
+      document.getElementById("app-installation"),
+      document.getElementById("user-id"),
+      document.getElementById("customer-id"),
+      document.getElementById("cs-content"),
+    ];
+
+    requiredFields.forEach((field) => {
+      if (field) {
+        // input, keyup, paste 이벤트 모두 감지하여 실시간 검증
+        field.addEventListener("input", checkButtonState);
+        field.addEventListener("keyup", checkButtonState);
+        field.addEventListener("paste", () => {
+          setTimeout(checkButtonState, 10); // paste 이벤트 후 값 업데이트 대기
+        });
+      }
+    });
+
+    // 초기 버튼 상태 확인
+    checkButtonState();
 
     // 기본 종료 시간을 현재 시간으로 설정
     const now = new Date();

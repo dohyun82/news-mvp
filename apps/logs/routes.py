@@ -35,6 +35,7 @@ def query_logs_route():
     - user_id: 사용자 ID 필터 (ua-user-id)
     - customer_id: 고객사 ID 필터 (ua-com-id)
     - service: 서비스 필터 (service)
+    - app_installation: 앱 설치 ID 필터 (app-installation)
     - from_time: 시작 시간 (ISO 8601 형식, 선택사항)
     - to_time: 종료 시간 (ISO 8601 형식, 선택사항)
     - limit: 최대 로그 개수 (기본값: 100)
@@ -55,17 +56,19 @@ def query_logs_route():
         user_id = data.get("user_id", "").strip() or None
         customer_id = data.get("customer_id", "").strip() or None
         service = data.get("service", "").strip() or None
+        app_installation = data.get("app_installation", "").strip() or None
         
         # 쿼리 또는 필터가 있어야 함
-        if not query and not user_id and not customer_id and not service:
-            return jsonify({"error": "query or filter (user_id/customer_id/service) is required"}), 400
+        if not query and not user_id and not customer_id and not service and not app_installation:
+            return jsonify({"error": "query or filter (user_id/customer_id/service/app_installation) is required"}), 400
         
         # 필터가 있으면 쿼리 생성
-        if user_id or customer_id or service:
+        if user_id or customer_id or service or app_installation:
             query = build_datadog_query(
                 user_id=user_id,
                 customer_id=customer_id,
                 service=service,
+                app_installation=app_installation,
                 additional_query=query if query else None
             )
         
@@ -112,6 +115,7 @@ def analyze_logs_route():
     - user_id: 사용자 ID 필터 (ua-user-id)
     - customer_id: 고객사 ID 필터 (ua-com-id)
     - service: 서비스 필터 (service)
+    - app_installation: 앱 설치 ID 필터 (app-installation)
     - cs_content: 고객 CS 내용 (선택사항, AI 분석 시 함께 고려)
     - from_time: 시작 시간 (ISO 8601 형식, 선택사항)
     - to_time: 종료 시간 (ISO 8601 형식, 선택사항)
@@ -142,11 +146,12 @@ def analyze_logs_route():
         user_id = data.get("user_id", "").strip() or None
         customer_id = data.get("customer_id", "").strip() or None
         service = data.get("service", "").strip() or None
+        app_installation = data.get("app_installation", "").strip() or None
         cs_content = data.get("cs_content", "").strip() or None
         
         # 쿼리 또는 필터가 있어야 함
-        if not query and not user_id and not customer_id and not service:
-            return jsonify({"error": "query or filter (user_id/customer_id/service) is required"}), 400
+        if not query and not user_id and not customer_id and not service and not app_installation:
+            return jsonify({"error": "query or filter (user_id/customer_id/service/app_installation) is required"}), 400
         
         # 시간 파라미터 파싱
         from_time = None
@@ -176,6 +181,7 @@ def analyze_logs_route():
             user_id=user_id,
             customer_id=customer_id,
             service=service,
+            app_installation=app_installation,
             cs_content=cs_content
         )
         
