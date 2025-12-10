@@ -47,7 +47,7 @@ margin-bottom: 12px; } .category-header h3 { margin: 0; font-size: 16px;
 font-weight: 600; color: #333; } .category-keyword-input { margin-top: 0; } {%
 endblock %} {% block content %}
 <div class="container">
-  <a href="/review" class="back-button">← 뒤로가기</a>
+  <a href="/news/review" class="back-button">← 뒤로가기</a>
   <h1>NewsBot 설정</h1>
 
   <div id="message-container"></div>
@@ -208,7 +208,7 @@ endblock %} {% block content %}
   async function loadSettings() {
     try {
       // 서버의 keyword_store에서 설정 가져오기
-      const res = await fetch("/api/settings/get");
+      const res = await fetch("/news/api/settings/get");
       if (!res.ok) {
         throw new Error("설정 로드 실패");
       }
@@ -402,7 +402,7 @@ endblock %} {% block content %}
     // 서버의 keyword_store에 저장 (SSOT 원칙 준수)
     try {
       const keywordsString = keywords.join(",");
-      const res = await fetch("/api/settings/save", {
+      const res = await fetch("/news/api/settings/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

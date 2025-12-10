@@ -1,9 +1,23 @@
-from flask import Flask, jsonify, render_template, request
+"""
+Flask application entry point for vendys-ai-automation-platform.
+
+This module initializes the Flask app and registers Blueprints for different
+application modules (news clipping, log analysis, etc.).
+"""
+
+from flask import Flask, jsonify, render_template, request, redirect, url_for
+
+# 점진적 마이그레이션: 기존 modules를 import하여 하위 호환성 유지
 from modules import crawler, openai, slack
 from modules.store import store
 from modules.common import configure_logging, register_http_logging, register_error_handlers
 from modules.config import RealDataConfig
 from modules import keyword_store
+
+# 새로운 구조: core, shared, apps 모듈 import
+from core.common import configure_logging as configure_logging_new, register_http_logging as register_http_logging_new, register_error_handlers as register_error_handlers_new
+from apps.news import news_bp
+from apps.logs import logs_bp
 
 app = Flask(__name__)
 
@@ -11,214 +25,93 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # 정적 파일 캐시 비활성화
 
-# Common logging / error handling
-configure_logging()
-register_http_logging(app)
-register_error_handlers(app)
+# Common logging / error handling (새로운 구조 사용)
+configure_logging_new()
+register_http_logging_new(app)
+register_error_handlers_new(app)
 
-# 키워드 설정은 keyword_store 모듈(JSON 파일 기반)을 통해 관리됩니다.
-# 서버 재시작 시에도 설정이 유지됩니다.
+# Blueprint 등록
+app.register_blueprint(news_bp)
+app.register_blueprint(logs_bp)
+
+# 하위 호환성: 기존 라우트를 새로운 Blueprint 함수로 위임
+# 뉴스 관련 API 라우트 (POST는 리다이렉트 대신 직접 처리)
+from apps.news.routes import (
+    collect_news_route, summarize_news_route, send_slack_route,
+    review_list_route, review_delete_route, review_select_route, review_category_route,
+    settings_initial_values_route, settings_save_route, settings_get_route
+)
 
 @app.route('/api/collect', methods=['POST'])
-def collect_news():
-    """뉴스 수집 API.
-    
-    keyword_store에서 키워드 설정을 읽어와 뉴스를 수집합니다.
-    """
-    # keyword_store에서 설정 가져오기 (None 전달하여 keyword_store의 기본값 사용)
-    articles = crawler.crawl_naver_news(
-        keywords=[],
-        user_keywords=None,  # None이면 keyword_store에서 읽어옴
-        user_max_articles=None,  # None이면 keyword_store에서 읽어옴
-        user_category_keywords=None,  # None이면 keyword_store에서 읽어옴
-        user_max_age_hours=None  # None이면 keyword_store에서 읽어옴
-    )
-    store.set_articles(articles)
-    return jsonify({"count": len(articles)})
+def collect_news_legacy():
+    """기존 뉴스 수집 API (하위 호환성)."""
+    return collect_news_route()
 
 @app.route('/api/summarize', methods=['POST'])
-def summarize_news():
-    data = request.get_json(silent=True) or {}
-    url = data.get("url")
-    if not url:
-        return jsonify({"error": "url is required"}), 400
-    
-    # store에서 기사 정보 가져오기 (제목을 함께 전달하기 위해)
-    article = store.get_article_by_url(url)
-    title = article.title if article else None
-    
-    # OpenAI API 호출 (제목이 있으면 함께 전달)
-    summary = openai.get_summary_from_openai(url, title=title)
-    store.set_summary(url, summary)
-    return jsonify({"url": url, "summary": summary})
+def summarize_news_legacy():
+    """기존 뉴스 요약 API (하위 호환성)."""
+    return summarize_news_route()
 
 @app.route('/api/send-slack', methods=['POST'])
-def send_slack():
-    selected = store.get_selected()
-    success, message = slack.send_message_to_slack(selected)
-    return jsonify({"success": success, "message": message})
+def send_slack_legacy():
+    """기존 슬랙 발송 API (하위 호환성)."""
+    return send_slack_route()
 
-# Review workflow APIs
 @app.route('/api/review/list', methods=['GET'])
-def review_list():
-    return jsonify(store.list_articles())
+def review_list_legacy():
+    """기존 뉴스 목록 조회 API (하위 호환성)."""
+    return review_list_route()
 
 @app.route('/api/review/delete', methods=['POST'])
-def review_delete():
-    data = request.get_json(silent=True) or {}
-    url = data.get("url")
-    if not url:
-        return jsonify({"error": "url is required"}), 400
-    ok = store.delete_by_url(url)
-    return jsonify({"deleted": ok})
+def review_delete_legacy():
+    """기존 뉴스 삭제 API (하위 호환성)."""
+    return review_delete_route()
 
 @app.route('/api/review/select', methods=['POST'])
-def review_select():
-    data = request.get_json(silent=True) or {}
-    url = data.get("url")
-    selected = bool(data.get("selected", True))
-    if not url:
-        return jsonify({"error": "url is required"}), 400
-    ok = store.set_selected(url, selected)
-    return jsonify({"updated": ok})
+def review_select_legacy():
+    """기존 뉴스 선택/해제 API (하위 호환성)."""
+    return review_select_route()
 
 @app.route('/api/review/category', methods=['POST'])
-def review_category():
-    try:
-        data = request.get_json(silent=True) or {}
-        url = data.get("url")
-        category = data.get("category")
-        
-        if not url:
-            return jsonify({"error": "url is required"}), 400
-        if not category:
-            return jsonify({"error": "category is required"}), 400
-        
-        # 유효한 카테고리인지 확인
-        valid_categories = ["그룹사", "업계", "참고", "읽을거리"]
-        if category not in valid_categories:
-            return jsonify({"error": f"invalid category: {category}. Must be one of {valid_categories}"}), 400
-        
-        # Article 존재 여부 확인
-        article = store.get_article_by_url(url)
-        if not article:
-            return jsonify({"error": "article not found"}), 404
-        
-        ok = store.set_category(url, category)
-        if not ok:
-            return jsonify({"error": "failed to update category"}), 500
-        
-        return jsonify({"updated": ok})
-    except Exception as e:
-        import logging
-        logging.getLogger("errors").exception("Error in review_category: %s", e)
-        return jsonify({"error": {"type": e.__class__.__name__, "message": str(e)}}), 500
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/review')
-def review_page():
-    return render_template('review.html')
-
-@app.route('/settings')
-def settings_page():
-    return render_template('settings.html')
+def review_category_legacy():
+    """기존 뉴스 카테고리 변경 API (하위 호환성)."""
+    return review_category_route()
 
 @app.route('/api/settings/initial-values', methods=['GET'])
-def settings_initial_values():
-    """keyword_store에서 초기값을 읽어서 반환합니다.
-    
-    로컬 스토리지에 값이 없을 때만 사용됩니다.
-    """
-    return jsonify({
-        "keywords": keyword_store.get_query_keywords(),
-        "max_articles": keyword_store.get_max_articles(),
-        "category_keywords": keyword_store.get_category_keywords(),
-        "max_age_hours": keyword_store.get_max_age_hours(),
-    })
+def settings_initial_values_legacy():
+    """기존 설정 초기값 API (하위 호환성)."""
+    return settings_initial_values_route()
 
 @app.route('/api/settings/save', methods=['POST'])
-def settings_save():
-    """사용자 설정을 keyword_store에 저장합니다.
-    
-    요청 본문:
-    - keywords: 쉼표로 구분된 키워드 문자열
-    - max_articles: 최대 수집 뉴스 개수 (정수)
-    - category_keywords: 카테고리별 키워드 딕셔너리 {"그룹사": ["키워드1", ...], "업계": [...], "참고": [...]}
-    - max_age_hours: 최대 기사 나이 (시간, 정수, 0 이상)
-    """
-    try:
-        data = request.get_json(silent=True) or {}
-        keywords = data.get("keywords")
-        max_articles = data.get("max_articles")
-        category_keywords = data.get("category_keywords")
-        max_age_hours = data.get("max_age_hours")
-        
-        # 검증 및 저장
-        if keywords is not None:
-            if not isinstance(keywords, str):
-                return jsonify({"error": "keywords must be a string"}), 400
-            if not keyword_store.update_query_keywords(keywords):
-                return jsonify({"error": "failed to save keywords"}), 500
-        
-        if max_articles is not None:
-            try:
-                max_articles = int(max_articles)
-                if max_articles <= 0:
-                    return jsonify({"error": "max_articles must be a positive integer"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": "max_articles must be an integer"}), 400
-            if not keyword_store.update_max_articles(max_articles):
-                return jsonify({"error": "failed to save max_articles"}), 500
-        
-        if category_keywords is not None:
-            if not isinstance(category_keywords, dict):
-                return jsonify({"error": "category_keywords must be a dictionary"}), 400
-            # 유효한 카테고리인지 확인
-            valid_categories = ["그룹사", "업계", "참고"]
-            for category in category_keywords.keys():
-                if category not in valid_categories:
-                    return jsonify({"error": f"invalid category: {category}. Must be one of {valid_categories}"}), 400
-            # 각 카테고리의 값이 리스트인지 확인
-            for category, keywords_list in category_keywords.items():
-                if not isinstance(keywords_list, list):
-                    return jsonify({"error": f"category_keywords[{category}] must be a list"}), 400
-                # 리스트 내 모든 항목이 문자열인지 확인
-                if not all(isinstance(kw, str) for kw in keywords_list):
-                    return jsonify({"error": f"category_keywords[{category}] must contain only strings"}), 400
-            if not keyword_store.update_category_keywords(category_keywords):
-                return jsonify({"error": "failed to save category_keywords"}), 500
-        
-        if max_age_hours is not None:
-            try:
-                max_age_hours = int(max_age_hours)
-                if max_age_hours < 0:
-                    return jsonify({"error": "max_age_hours must be 0 or greater"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": "max_age_hours must be an integer"}), 400
-            if not keyword_store.update_max_age_hours(max_age_hours):
-                return jsonify({"error": "failed to save max_age_hours"}), 500
-        
-        return jsonify({"saved": True})
-    except Exception as e:
-        import logging
-        logging.getLogger("errors").exception("Error in settings_save: %s", e)
-        return jsonify({"error": {"type": e.__class__.__name__, "message": str(e)}}), 500
+def settings_save_legacy():
+    """기존 설정 저장 API (하위 호환성)."""
+    return settings_save_route()
 
 @app.route('/api/settings/get', methods=['GET'])
-def settings_get():
-    """keyword_store에서 저장된 설정을 반환합니다.
-    
-    모든 설정은 keyword_store(JSON 파일)에서 읽어옵니다.
-    """
-    return jsonify({
-        "keywords": keyword_store.get_query_keywords(),
-        "max_articles": keyword_store.get_max_articles(),
-        "category_keywords": keyword_store.get_category_keywords(),
-        "max_age_hours": keyword_store.get_max_age_hours(),
-    })
+def settings_get_legacy():
+    """기존 설정 조회 API (하위 호환성)."""
+    return settings_get_route()
+
+# 페이지 라우트 (하위 호환성)
+@app.route('/')
+def index():
+    """메인 대시보드."""
+    return render_template('index.html', current_page=None)
+
+@app.route('/review')
+def review_page_legacy():
+    """기존 뉴스 클리핑 페이지 (하위 호환성)."""
+    return redirect(url_for('news.review_page'), code=301)
+
+@app.route('/logs')
+def logs_page_legacy():
+    """기존 로그 분석 페이지 (하위 호환성)."""
+    return redirect(url_for('logs.index'), code=301)
+
+@app.route('/settings')
+def settings_page_legacy():
+    """기존 설정 페이지 (하위 호환성)."""
+    return redirect(url_for('news.settings_page'), code=301)
 
 if __name__ == '__main__':
     # 개발 모드: 코드 변경 시 자동 리로드 활성화
@@ -231,5 +124,3 @@ if __name__ == '__main__':
         use_reloader=True,
         use_debugger=True
     )
-
-

@@ -1,6 +1,6 @@
-# NewsBot
+# vendys-ai-automation-platform
 
-간단한 뉴스 수집/요약/공유(슬랙) 데모 애플리케이션입니다. 초기 목표는 폴더 구조와 모듈 간 연결이 정상 동작하는 "Hello World" 수준의 엔드투엔드 흐름을 확인하는 것입니다.
+사내 AI 자동화 기능을 제공하는 플랫폼입니다. 뉴스 클리핑, 로그 분석 등 다양한 자동화 기능을 모듈화된 구조로 제공합니다.
 
 ## 목차
 
@@ -26,16 +26,41 @@
 
 ```
 ./
-  app.py
-  modules/
-    __init__.py
+  app.py                          # Flask 앱 초기화 및 Blueprint 등록
+  apps/                           # 기능별 앱 모듈
+    news/                         # 뉴스 클리핑 앱
+      routes.py
+      services.py
+      models.py
+      templates/
+    logs/                         # 로그 분석 앱
+      routes.py
+      services.py
+      templates/
+  core/                           # 공통 기능
+    config.py
+    common.py
+    auth.py
+  shared/                         # 공유 모듈
+    ai/                           # AI 클라이언트
+      base_client.py
+      openai_client.py
+    integrations/                 # 외부 연동
+      slack.py
+      datadog.py
+    storage/                      # 저장소 추상화
+      base_store.py
+  modules/                        # 기존 모듈 (점진적 마이그레이션 중)
     crawler.py
-    openai.py
-    slack.py
-  templates/
+    store.py
+    keyword_store.py
+  templates/                      # 공통 템플릿
+    base.html
     index.html
   static/
     css/
+  data/
+    keywords.json
   .env.sample
   .gitignore
   requirements.txt
@@ -127,22 +152,44 @@ flask --app app run --host=0.0.0.0 --port 5001
 | `NAVER_TIMEOUT_MS`        | 네이버 API 호출 타임아웃(ms)                         |
 | `NAVER_SORT`              | 정렬(sim                                             | date) |
 | `NAVER_DELAY_MS`          | 키워드 호출 간 대기(ms)                              |
+| `DATADOG_API_KEY`         | Datadog API 키 (로그 분석 기능용)                    |
+| `DATADOG_APP_KEY`         | Datadog App 키 (로그 분석 기능용)                    |
+| `DATADOG_SITE`            | Datadog 사이트 (기본값: datadoghq.com)               |
 
 초기 실행 단계에서는 실제 키가 없어도 서버 기동과 라우트 연결 확인에는 문제가 없습니다.
 
-## 5. 제공 라우트(데모)
+## 5. 제공 라우트
 
-- `GET /` 템플릿 렌더링 테스트
-- `POST /api/collect` 뉴스 수집 더미 응답
-- `POST /api/summarize` 기사 요약 더미 응답
-- `POST /api/send-slack` 슬랙 발송 더미 응답
+### 뉴스 클리핑 (`/news/*`)
+
+- `GET /news/review` 뉴스 클리핑 검토 페이지
+- `GET /news/settings` 뉴스 클리핑 설정 페이지
+- `POST /news/api/collect` 뉴스 수집
+- `POST /news/api/summarize` 기사 요약
+- `POST /news/api/send-slack` 슬랙 발송
+- `GET /news/api/review/list` 뉴스 목록 조회
+- `POST /news/api/review/select` 뉴스 선택/해제
+- `POST /news/api/review/category` 뉴스 카테고리 변경
+- `POST /news/api/review/delete` 뉴스 삭제
+- `GET /news/api/settings/get` 설정 조회
+- `POST /news/api/settings/save` 설정 저장
+
+### 로그 분석 (`/logs/*`)
+
+- `GET /logs` 로그 분석 대시보드
+- `POST /logs/api/query` Datadog 로그 쿼리
+- `POST /logs/api/analyze` AI 기반 로그 분석
+
+### 하위 호환성
+
+기존 라우트(`/api/*`, `/review`, `/settings`, `/logs`)는 새로운 Blueprint 경로로 리다이렉트됩니다.
 
 예시 요청:
 
 ```bash
-curl -X POST http://127.0.0.1:5001/api/collect
-curl -X POST http://127.0.0.1:5001/api/summarize
-curl -X POST http://127.0.0.1:5001/api/send-slack
+curl -X POST http://127.0.0.1:5001/news/api/collect
+curl -X POST http://127.0.0.1:5001/news/api/summarize
+curl -X POST http://127.0.0.1:5001/logs/api/query -H "Content-Type: application/json" -d '{"query": "service:mobile-app status:error"}'
 ```
 
 ## 6. 개발 메모

@@ -40,7 +40,7 @@ cursor: pointer; font-size: 14px; font-weight: 500; transition: background-color
 0.2s; z-index: 1000; } .settings-button:hover { background-color: #0056b3; }
 .settings-button:active { background-color: #004085; } {% endblock %} {% block
 content %}
-<button class="settings-button" onclick="window.location.href='/settings'">
+<button class="settings-button" onclick="window.location.href='/news/settings'">
   설정
 </button>
 <div id="loading-overlay" class="loading-overlay">
@@ -149,7 +149,7 @@ content %}
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     try {
       showLoading("뉴스 수집 중...");
-      await fetch("/api/collect", { method: "POST" });
+      await fetch("/news/api/collect", { method: "POST" });
       await refresh(); // refresh()에서 updateButtons()가 호출되어 버튼 상태가 자동 업데이트됨
     } catch (error) {
       console.error("뉴스 수집 중 오류:", error);
@@ -164,7 +164,7 @@ content %}
   async function resetCollection() {
     // 모든 뉴스 삭제 API 호출
     try {
-      const res = await fetch("/api/review/list");
+      const res = await fetch("/news/api/review/list");
       const data = await res.json();
 
       // 모든 뉴스 삭제
@@ -201,7 +201,7 @@ content %}
 
   async function refresh() {
     // 한 번의 API 호출로 데이터 가져오기
-    const res = await fetch("/api/review/list");
+    const res = await fetch("/news/api/review/list");
     const data = await res.json();
 
     // 가져온 데이터를 각 함수에 전달
@@ -218,7 +218,7 @@ content %}
   async function updateButtons(data = null) {
     // 데이터가 전달되지 않으면 API 호출
     if (!data) {
-      const res = await fetch("/api/review/list");
+      const res = await fetch("/news/api/review/list");
       data = await res.json();
     }
     const selectedNews = data.filter((a) => a.selected);
@@ -270,7 +270,7 @@ content %}
   async function refreshAllNews(data = null) {
     // 데이터가 전달되지 않으면 API 호출
     if (!data) {
-      const res = await fetch("/api/review/list");
+      const res = await fetch("/news/api/review/list");
       data = await res.json();
     }
     const root = document.getElementById("all-news-list");
@@ -329,7 +329,7 @@ content %}
   async function refreshSelectedNews(data = null) {
     // 데이터가 전달되지 않으면 API 호출
     if (!data) {
-      const res = await fetch("/api/review/list");
+      const res = await fetch("/news/api/review/list");
       data = await res.json();
     }
     const selectedNews = data.filter((a) => a.selected);
@@ -447,13 +447,13 @@ content %}
     const category = event.currentTarget.getAttribute("data-category");
     if (category) {
       // 이미 선택된 뉴스인 경우 카테고리만 변경
-      const res = await fetch("/api/review/list");
+      const res = await fetch("/news/api/review/list");
       const data = await res.json();
       const article = data.find((a) => a.url === url);
 
       if (article && article.selected) {
         // 이미 선택된 뉴스인 경우 카테고리만 변경
-        const categoryRes = await fetch("/api/review/category", {
+        const categoryRes = await fetch("/news/api/review/category", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url, category }),
@@ -488,7 +488,7 @@ content %}
       } else {
         // 선택되지 않은 뉴스인 경우: 카테고리 변경 후 선택 처리
         // 카테고리를 먼저 변경한 후 선택하여 올바른 카테고리로 표시되도록 함
-        const categoryRes = await fetch("/api/review/category", {
+        const categoryRes = await fetch("/news/api/review/category", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url, category }),
@@ -556,7 +556,7 @@ content %}
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     try {
       showLoading("뉴스 요약 중...");
-      const res = await fetch("/api/review/list");
+      const res = await fetch("/news/api/review/list");
       const data = await res.json();
       const selectedNews = data.filter((a) => a.selected);
 
@@ -583,7 +583,7 @@ content %}
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     try {
       showLoading(selected ? "뉴스 선택 중..." : "뉴스 선택 해제 중...");
-      await fetch("/api/review/select", {
+      await fetch("/news/api/review/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, selected }),
@@ -604,7 +604,7 @@ content %}
     }
     try {
       console.log("summarize 함수 호출됨, URL:", url);
-      const res = await fetch("/api/summarize", {
+      const res = await fetch("/news/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
@@ -656,7 +656,7 @@ content %}
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     try {
       showLoading("슬랙 발송 중...");
-      const res = await fetch("/api/send-slack", { method: "POST" });
+      const res = await fetch("/news/api/send-slack", { method: "POST" });
       const data = await res.json();
       alert(data.message || "완료");
 
