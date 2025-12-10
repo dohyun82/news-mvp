@@ -1,14 +1,14 @@
-{% extends "base.html" %} {% block title %}로그 분석 -
-vendys-ai-automation-platform{% endblock %} {% block extra_styles %} /* 로그
-분석 페이지 전용 스타일 */ .logs-container { padding: 24px; } .query-section {
-background-color: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px
-4px rgba(0, 0, 0, 0.1); margin-bottom: 24px; } .query-form { display: flex; gap:
-12px; margin-bottom: 16px; } .query-form input { flex: 1; padding: 10px; border:
-1px solid #ddd; border-radius: 6px; font-size: 14px; } .query-form button {
-padding: 10px 20px; } .results-section { background-color: white; padding: 24px;
-border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); } .log-entry {
-padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size:
-13px; } .log-entry:last-child { border-bottom: none; } .analysis-section {
+{% extends "base.html" %} {% block title %}로그 분석 - AIF 자동화앱{% endblock
+%} {% block extra_styles %} /* 로그 분석 페이지 전용 스타일 */ .logs-container {
+padding: 24px; } .query-section { background-color: white; padding: 24px;
+border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); margin-bottom:
+24px; } .query-form { display: flex; gap: 12px; margin-bottom: 16px; }
+.query-form input { flex: 1; padding: 10px; border: 1px solid #ddd;
+border-radius: 6px; font-size: 14px; } .query-form button { padding: 10px 20px;
+} .results-section { background-color: white; padding: 24px; border-radius: 8px;
+box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); } .log-entry { padding: 12px;
+border-bottom: 1px solid #eee; font-family: monospace; font-size: 13px; }
+.log-entry:last-child { border-bottom: none; } .analysis-section {
 background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 24px;
 } .analysis-section h3 { margin-top: 0; color: #333; } .suggestion-item {
 padding: 8px 12px; background-color: white; border-left: 3px solid #007bff;
