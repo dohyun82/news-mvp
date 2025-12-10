@@ -189,7 +189,7 @@ flask --app app run --host=0.0.0.0 --port 5001
 ```bash
 curl -X POST http://127.0.0.1:5001/news/api/collect
 curl -X POST http://127.0.0.1:5001/news/api/summarize
-curl -X POST http://127.0.0.1:5001/logs/api/query -H "Content-Type: application/json" -d '{"query": "service:mobile-app status:error"}'
+curl -X POST http://127.0.0.1:5001/logs/api/query -H "Content-Type: application/json" -d '{"query": "service:sikdae-android status:error"}'
 ```
 
 ## 6. 개발 메모

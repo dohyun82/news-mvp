@@ -31,7 +31,7 @@ def query_logs(
     """Query logs from Datadog.
     
     Args:
-        query: Datadog log query string (e.g., "service:mobile-app status:error")
+        query: Datadog log query string (e.g., "service:sikdae-android status:error")
         from_time: Start time for query (default: 1 hour ago)
         to_time: End time for query (default: now)
         limit: Maximum number of logs to return (default: 100)
@@ -41,7 +41,7 @@ def query_logs(
         List of log entries as dictionaries
         
     Example:
-        >>> logs = query_logs("service:mobile-app status:error")
+        >>> logs = query_logs("service:sikdae-android status:error")
         >>> for log in logs:
         ...     print(log.get("message"))
     """
@@ -165,32 +165,116 @@ def query_logs(
 def format_logs_for_analysis(logs: List[Dict]) -> str:
     """Format logs into a readable string for AI analysis.
     
+    로그를 AI 분석에 적합한 형식으로 포맷팅합니다.
+    효율성을 위해 핵심 정보만 포함하고 불필요한 중복 정보는 제거합니다.
+    
+    최적화 전략:
+    - 중첩된 attributes 구조 지원
+    - 타임스탬프는 시간만 표시 (날짜 생략)
+    - 사용자/고객사 ID는 변경될 때만 표시 (중복 제거)
+    - 각 로그 메시지는 최대 200자로 제한
+    - 빈 메시지나 너무 짧은 메시지는 스킵
+    
     Args:
         logs: List of log entries from Datadog
         
     Returns:
-        Formatted string containing log messages
+        Formatted string containing log messages with metadata
     """
     if not logs:
         return "로그가 없습니다."
     
     lines = []
+    prev_user_id = None
+    prev_customer_id = None
+    
     for i, log in enumerate(logs, 1):
-        message = log.get("attributes", {}).get("message", log.get("message", ""))
-        timestamp = log.get("attributes", {}).get("timestamp", log.get("timestamp", ""))
-        service = log.get("attributes", {}).get("service", log.get("service", "unknown"))
-        level = log.get("attributes", {}).get("level", log.get("level", "info"))
+        attributes = log.get("attributes", {})
+        nested_attrs = attributes.get("attributes", {})
         
-        # 타임스탬프 포맷팅
+        # 메시지 추출 (중첩 구조 고려)
+        message = nested_attrs.get("message") or attributes.get("message") or log.get("message", "")
+        
+        # 타임스탬프: app-timestamp 우선, 없으면 timestamp 사용
+        timestamp = (
+            nested_attrs.get("app-timestamp") or 
+            attributes.get("app-timestamp") or 
+            attributes.get("timestamp") or 
+            log.get("timestamp", "")
+        )
+        service = attributes.get("service", log.get("service", "unknown"))
+        level = attributes.get("status") or nested_attrs.get("status") or attributes.get("level") or "info"
+        
+        # 사용자 및 고객사 정보 (CS 분석에 유용하지만 중복 제거)
+        user_id = nested_attrs.get("ua-user-id") or attributes.get("ua-user-id", "")
+        customer_id = nested_attrs.get("ua-com-id") or attributes.get("ua-com-id", "")
+        
+        # 타임스탬프 포맷팅 (간단한 형식 - 시간만 표시)
         if timestamp:
             try:
-                dt = datetime.fromtimestamp(timestamp / 1000)
-                timestamp_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                if isinstance(timestamp, (int, float)):
+                    if timestamp > 1e10:  # 밀리초
+                        dt = datetime.fromtimestamp(timestamp / 1000)
+                    else:  # 초
+                        dt = datetime.fromtimestamp(timestamp)
+                else:
+                    dt = datetime.fromisoformat(str(timestamp).replace('Z', '+00:00'))
+                timestamp_str = dt.strftime("%H:%M:%S")  # 시간만 표시 (날짜는 생략)
             except:
-                timestamp_str = str(timestamp)
+                timestamp_str = str(timestamp)[:19]  # 최대 19자로 제한
         else:
             timestamp_str = "N/A"
         
-        lines.append(f"[{i}] {timestamp_str} [{service}] [{level}] {message}")
+        # 로그 라인 구성 (더 간결하게)
+        # 에러/경고만 레벨 표시, info는 생략
+        if level.lower() in ["error", "warn", "warning", "critical", "fatal"]:
+            log_parts = [f"[{i}]", timestamp_str, f"[{level}]"]
+        else:
+            log_parts = [f"[{i}]", timestamp_str]  # info 레벨은 생략
+        
+        # 사용자/고객사 정보는 변경될 때만 표시 (중복 제거, 더 짧게)
+        if user_id and user_id != prev_user_id:
+            log_parts.append(f"[u:{user_id[:6]}...]")  # 더 짧게
+        if customer_id and customer_id != prev_customer_id:
+            log_parts.append(f"[c:{customer_id[:6]}...]")
+        
+        # 메시지 처리: 없거나 짧으면 기본 메시지 생성
+        if not message or len(message.strip()) < 3:
+            # 메시지가 없어도 다른 정보(레벨, 서비스, UI 이벤트 등)를 표시
+            ui_event = nested_attrs.get("ui-event") or attributes.get("ui-event", "")
+            ui_screen = nested_attrs.get("ui-screen") or attributes.get("ui-screen", "")
+            http_uri = nested_attrs.get("http-request-uri") or attributes.get("http-request-uri", "")
+            
+            # 대체 메시지 생성
+            message_parts = []
+            if ui_event:
+                message_parts.append(f"ui-event:{ui_event}")
+            if ui_screen:
+                message_parts.append(f"ui-screen:{ui_screen}")
+            if http_uri:
+                message_parts.append(f"http-request-uri:{http_uri}")
+            if service and service != "unknown":
+                message_parts.append(f"service:{service}")
+            
+            if message_parts:
+                message = " | ".join(message_parts)
+            else:
+                # 최소한의 정보라도 표시
+                message = f"[{level}] 로그 (메시지 없음)"
+        else:
+            # 메시지 길이 제한 (각 로그당 최대 150자로 더 줄임)
+            if len(message) > 150:
+                message = message[:147] + "..."
+        
+        log_parts.append(message)
+        lines.append(" ".join(log_parts))
+        
+        # 이전 값 저장 (중복 체크용)
+        prev_user_id = user_id
+        prev_customer_id = customer_id
+    
+    # 모든 로그가 스킵된 경우 안내 메시지 반환
+    if not lines:
+        return "로그는 조회되었으나 표시할 메시지가 없습니다. (로그 구조 확인 필요)"
     
     return "\n".join(lines)

@@ -23,18 +23,20 @@ except ImportError:
 from core.config import OpenAIConfig
 
 
-def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_seconds: int = 15) -> str:
+def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_seconds: int = 15, model: Optional[str] = None) -> str:
     """Return a short summary for the given URL.
 
     Behavior:
     - If no API key is configured, return a stubbed summary to keep the flow
       functional during early development.
     - If an API key exists, call OpenAI API once to generate a summary.
+    - No retry logic: API call is attempted only once (no retries on timeout or errors).
 
     Args:
         url: The URL of the news article to summarize.
         title: Optional article title to improve summary quality.
         timeout_seconds: HTTP request timeout in seconds (default: 15).
+        model: OpenAI model to use (default: "gpt-5.1").
 
     Returns:
         A summary string, or an error message if the API call fails.
@@ -55,79 +57,81 @@ def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_se
     # timeout 설정: 기본값 15초를 사용하되, 더 긴 응답 시간이 필요한 경우를 대비
     client = OpenAI(api_key=cfg.api_key, timeout=timeout_seconds)
     
-    # 요약할 텍스트 준비: 제목이 있으면 제목 사용, 없으면 URL 사용
-    # 실제 운영에서는 URL에서 기사 내용을 스크래핑하여 사용하는 것이 좋습니다.
-    prompt_text = title if title else url
-    prompt = f"다음 뉴스 기사를 3~5줄로 간단히 요약해주세요:\n\n{prompt_text}"
+    # 프롬프트 준비
+    # url이 "log_analysis"인 경우: title을 완성된 프롬프트로 간주 (로그 분석)
+    # 그 외의 경우: 뉴스 요약용 프롬프트 추가
+    if url == "log_analysis" and title:
+        # 로그 분석: title이 이미 완성된 프롬프트
+        prompt = title
+    else:
+        # 뉴스 요약: title이 있으면 제목 사용, 없으면 URL 사용
+        prompt_text = title if title else url
+        prompt = f"다음 뉴스 기사를 3~5줄로 간단히 요약해주세요:\n\n{prompt_text}"
     
-    # 재시도 로직: 일시적인 서버 오류(503 등)에 대비하여 최대 3번 시도
-    max_attempts = 3
-    last_error = None
-    
-    for attempt in range(1, max_attempts + 1):
-        try:
-            # OpenAI API 호출 (gpt-5.1 모델 사용)
-            response = client.chat.completions.create(
-                model="gpt-5.1",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                timeout=timeout_seconds
-            )
-            
-            # 응답에서 텍스트 추출
-            summary = response.choices[0].message.content.strip()
-            if attempt > 1:
-                print(f"openai_client.py: API call successful (attempt {attempt})")
-            else:
-                print("openai_client.py: API call successful")
-            return summary
-            
-        except Exception as exc:
-            last_error = exc
-            error_str = str(exc)
-            error_type = type(exc).__name__
-            
-            # 에러 타입별 분류
-            # Timeout 관련 에러 확인
-            is_timeout = (
-                "timeout" in error_str.lower() or
-                "timed out" in error_str.lower() or
-                "deadline" in error_str.lower()
-            )
-            
-            # 503 (Service Unavailable) 또는 "overloaded" 같은 일시적 오류인 경우 재시도
-            is_overloaded = "overloaded" in error_str.lower() or "UNAVAILABLE" in error_str
-            is_retryable = (
-                "503" in error_str or
-                is_overloaded or
-                "try again" in error_str.lower() or
-                "rate limit" in error_str.lower() or
-                is_timeout  # timeout 에러도 재시도 가능
-            )
-            
-            if is_retryable and attempt < max_attempts:
-                # 서버 과부하("overloaded")인 경우 더 긴 대기 시간 적용
-                if is_overloaded:
-                    # 과부하 상황: 5초, 10초, 20초로 더 긴 대기
-                    wait_time = 5 * attempt  # 5초, 10초, 20초
-                else:
-                    # 일반적인 일시적 오류: 지수 백오프 (2초, 4초, 8초)
-                    wait_time = 2 ** attempt
-                
-                error_type_msg = "overloaded" if is_overloaded else ("timeout" if is_timeout else "server error")
-                print(f"openai_client.py: API call failed (attempt {attempt}/{max_attempts}, {error_type_msg}): {error_str[:100]}")
-                print(f"openai_client.py: Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-                continue
-            else:
-                # 재시도 불가능한 에러이거나 최대 시도 횟수 도달
-                error_detail = f"{error_type}: {error_str[:100]}" if error_str else str(exc)
-                print(f"openai_client.py: API call failed after {attempt} attempts: {error_detail}")
-                return f"{url} 요약 실패 ({error_detail})"
-    
-    # 이 코드는 실행되지 않아야 하지만 안전을 위해 추가
-    return f"{url} 요약 실패 (재시도 한계 도달)"
+    # API 호출 (1번만 시도, 재시도 없음)
+    try:
+        # 모델 선택: 지정된 모델이 있으면 사용, 없으면 기본 모델 사용
+        model_name = model or "gpt-5.1"  # 기본값: 기존 모델 유지
+        
+        # API 호출 전 로깅: 전송되는 데이터 기록
+        print("=" * 80)
+        print("OpenAI API 호출 - 전송 데이터")
+        print("=" * 80)
+        print(f"모델: {model_name}")
+        print(f"타임아웃: {timeout_seconds}초")
+        print(f"프롬프트 길이: {len(prompt)}자")
+        print(f"프롬프트 내용 (처음 500자):")
+        print("-" * 80)
+        print(prompt[:500])
+        if len(prompt) > 500:
+            print(f"... (총 {len(prompt)}자, 나머지 {len(prompt) - 500}자 생략)")
+        print("-" * 80)
+        print(f"전체 프롬프트 길이: {len(prompt)}자")
+        print("=" * 80)
+        
+        # OpenAI API 호출
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            timeout=timeout_seconds
+        )
+        
+        # 응답에서 텍스트 추출
+        summary = response.choices[0].message.content.strip()
+        
+        # API 호출 성공 로깅
+        print("=" * 80)
+        print("OpenAI API 호출 성공")
+        print("=" * 80)
+        print(f"응답 길이: {len(summary)}자")
+        print(f"응답 내용 (처음 300자):")
+        print("-" * 80)
+        print(summary[:300])
+        if len(summary) > 300:
+            print(f"... (총 {len(summary)}자, 나머지 {len(summary) - 300}자 생략)")
+        print("-" * 80)
+        print("=" * 80)
+        
+        return summary
+        
+    except Exception as exc:
+        # 에러 발생 시 즉시 실패 반환 (재시도 없음)
+        error_str = str(exc)
+        error_type = type(exc).__name__
+        error_detail = f"{error_type}: {error_str[:100]}" if error_str else str(exc)
+        
+        # API 호출 실패 로깅
+        print("=" * 80)
+        print("OpenAI API 호출 실패")
+        print("=" * 80)
+        print(f"에러 타입: {error_type}")
+        print(f"에러 메시지: {error_str}")
+        print(f"전송했던 프롬프트 길이: {len(prompt)}자")
+        print("=" * 80)
+        
+        return f"{url} 요약 실패 ({error_detail})"

@@ -13,7 +13,7 @@ from flask import jsonify, render_template, request
 from datetime import datetime, timedelta
 
 from . import logs_bp
-from .services import query_logs_from_datadog, analyze_logs_with_ai
+from .services import build_datadog_query, query_logs_from_datadog, analyze_logs_with_ai
 from shared.integrations.datadog import query_logs, format_logs_for_analysis
 from shared.ai.openai_client import get_summary_from_openai
 
@@ -21,25 +21,53 @@ from shared.ai.openai_client import get_summary_from_openai
 @logs_bp.route('')
 def index():
     """로그 분석 대시보드 페이지."""
-    return render_template('index.html', current_page='logs')
+    return render_template('logs.html', current_page='logs')
 
 
-@logs_bp.route('/api/query', methods=['POST'])
+@logs_bp.route('/api/query', methods=['POST', 'OPTIONS'])
 def query_logs_route():
     """Datadog 로그 쿼리 API.
     
+    필터 기반 쿼리 또는 텍스트 쿼리를 지원합니다.
+    
     요청 본문:
-    - query: Datadog 쿼리 문자열 (예: "service:mobile-app status:error")
+    - query: Datadog 쿼리 문자열 (선택사항, 필터와 함께 사용 가능)
+    - user_id: 사용자 ID 필터 (ua-user-id)
+    - customer_id: 고객사 ID 필터 (ua-com-id)
+    - service: 서비스 필터 (service)
     - from_time: 시작 시간 (ISO 8601 형식, 선택사항)
     - to_time: 종료 시간 (ISO 8601 형식, 선택사항)
     - limit: 최대 로그 개수 (기본값: 100)
+    
+    Note: query가 없고 필터도 없으면 에러 반환
     """
+    # CORS preflight 요청 처리
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST')
+        return response
+    
     try:
         data = request.get_json(silent=True) or {}
-        query = data.get("query", "")
+        query = data.get("query", "").strip()
+        user_id = data.get("user_id", "").strip() or None
+        customer_id = data.get("customer_id", "").strip() or None
+        service = data.get("service", "").strip() or None
         
-        if not query:
-            return jsonify({"error": "query is required"}), 400
+        # 쿼리 또는 필터가 있어야 함
+        if not query and not user_id and not customer_id and not service:
+            return jsonify({"error": "query or filter (user_id/customer_id/service) is required"}), 400
+        
+        # 필터가 있으면 쿼리 생성
+        if user_id or customer_id or service:
+            query = build_datadog_query(
+                user_id=user_id,
+                customer_id=customer_id,
+                service=service,
+                additional_query=query if query else None
+            )
         
         # 시간 파라미터 파싱
         from_time = None
@@ -73,25 +101,52 @@ def query_logs_route():
         return jsonify({"error": {"type": e.__class__.__name__, "message": str(e)}}), 500
 
 
-@logs_bp.route('/api/analyze', methods=['POST'])
+@logs_bp.route('/api/analyze', methods=['POST', 'OPTIONS'])
 def analyze_logs_route():
     """AI 기반 로그 분석 API.
     
+    필터 기반 쿼리 또는 텍스트 쿼리를 지원하며, 구조화된 분석 결과를 반환합니다.
+    
     요청 본문:
-    - query: Datadog 쿼리 문자열
+    - query: Datadog 쿼리 문자열 (선택사항, 필터와 함께 사용 가능)
+    - user_id: 사용자 ID 필터 (ua-user-id)
+    - customer_id: 고객사 ID 필터 (ua-com-id)
+    - service: 서비스 필터 (service)
+    - cs_content: 고객 CS 내용 (선택사항, AI 분석 시 함께 고려)
     - from_time: 시작 시간 (ISO 8601 형식, 선택사항)
     - to_time: 종료 시간 (ISO 8601 형식, 선택사항)
     - limit: 최대 로그 개수 (기본값: 100)
     
     Returns:
-        AI 분석 결과 및 CS 대응 제안
+        구조화된 AI 분석 결과:
+        - logs: 로그 목록
+        - problem_summary: 문제점 요약
+        - root_cause: 원인 추적
+        - user_behavior: 사용자 행동 분석
+        - cs_suggestions: CS 대응 제안 리스트
+        - error_patterns: 에러 패턴 리스트
+    
+    Note: query가 없고 필터도 없으면 에러 반환
     """
+    # CORS preflight 요청 처리
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST')
+        return response
+    
     try:
         data = request.get_json(silent=True) or {}
-        query = data.get("query", "")
+        query = data.get("query", "").strip()
+        user_id = data.get("user_id", "").strip() or None
+        customer_id = data.get("customer_id", "").strip() or None
+        service = data.get("service", "").strip() or None
+        cs_content = data.get("cs_content", "").strip() or None
         
-        if not query:
-            return jsonify({"error": "query is required"}), 400
+        # 쿼리 또는 필터가 있어야 함
+        if not query and not user_id and not customer_id and not service:
+            return jsonify({"error": "query or filter (user_id/customer_id/service) is required"}), 400
         
         # 시간 파라미터 파싱
         from_time = None
@@ -112,8 +167,17 @@ def analyze_logs_route():
         if not isinstance(limit, int) or limit <= 0:
             return jsonify({"error": "limit must be a positive integer"}), 400
         
-        # 로그 분석 수행
-        analysis_result = analyze_logs_with_ai(query, from_time=from_time, to_time=to_time, limit=limit)
+        # 로그 분석 수행 (필터 파라미터 및 CS 내용 전달)
+        analysis_result = analyze_logs_with_ai(
+            query=query,
+            from_time=from_time,
+            to_time=to_time,
+            limit=limit,
+            user_id=user_id,
+            customer_id=customer_id,
+            service=service,
+            cs_content=cs_content
+        )
         
         return jsonify(analysis_result)
     except Exception as e:

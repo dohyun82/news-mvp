@@ -1,0 +1,502 @@
+{% extends "base.html" %} {% block title %}로그 분석 - AIF 자동화앱{% endblock
+%} {% block extra_styles %} /* 로그 분석 페이지 전용 스타일 */ .logs-container {
+padding: 24px; } .query-section { background-color: white; padding: 24px;
+border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); margin-bottom:
+24px; } .filter-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+margin-bottom: 16px; } .filter-form .form-group { display: flex; flex-direction:
+column; } .filter-form label { margin-bottom: 6px; font-weight: 500; color:
+#333; font-size: 14px; } .filter-form input, .filter-form select { padding:
+10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+.filter-form.full-width { grid-column: 1 / -1; } .query-form { display: flex;
+gap: 12px; margin-bottom: 16px; } .query-form input { flex: 1; padding: 10px;
+border: 1px solid #ddd; border-radius: 6px; font-size: 14px; } .query-form
+button { padding: 10px 20px; } .advanced-toggle { margin-top: 12px;
+margin-bottom: 12px; } .advanced-toggle button { background: none; border: none;
+color: #007bff; cursor: pointer; text-decoration: underline; font-size: 14px;
+padding: 0; } .advanced-options { display: none; margin-top: 16px; padding-top:
+16px; border-top: 1px solid #eee; } .advanced-options.show { display: block; }
+.results-section { background-color: white; padding: 24px; border-radius: 8px;
+box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); } .log-entry { padding: 12px;
+border-bottom: 1px solid #eee; font-family: monospace; font-size: 13px; }
+.log-entry:last-child { border-bottom: none; } .log-entry div { word-break:
+break-word; } .analysis-section { background-color: #f8f9fa; padding: 20px;
+border-radius: 8px; margin-top: 24px; } .analysis-section h3 { margin-top: 0;
+color: #333; } .analysis-section h4 { margin-top: 20px; margin-bottom: 12px;
+color: #555; } .analysis-block { background-color: white; padding: 16px;
+border-radius: 6px; margin-bottom: 16px; border-left: 4px solid #007bff; }
+.analysis-block h5 { margin-top: 0; margin-bottom: 8px; color: #333; font-size:
+16px; } .analysis-block p, .analysis-block div { margin: 0; line-height: 1.6;
+color: #555; white-space: pre-wrap; } .suggestion-item { padding: 8px 12px;
+background-color: white; border-left: 3px solid #007bff; margin-bottom: 8px;
+border-radius: 4px; } .error-pattern-item { padding: 6px 10px; background-color:
+#fff3cd; border-left: 3px solid #ffc107; margin-bottom: 6px; border-radius: 4px;
+font-size: 13px; } {% endblock %} {% block content %}
+<div class="logs-container">
+  <h1>로그 분석</h1>
+  <p>
+    Datadog에 쌓인 모바일 식권 애플리케이션 서버/클라이언트 로그를 분석하여 CS
+    대응에 도움을 줍니다.
+  </p>
+
+  <div class="query-section">
+    <h2>로그 쿼리</h2>
+
+    <!-- 구조화된 필터 폼 -->
+    <div class="filter-form">
+      <div class="form-group">
+        <label for="from-time">시작 시간</label>
+        <input type="datetime-local" id="from-time" />
+      </div>
+      <div class="form-group">
+        <label for="to-time">종료 시간</label>
+        <input type="datetime-local" id="to-time" />
+      </div>
+      <div class="form-group">
+        <label for="user-id">사용자 ID (ua-user-id)</label>
+        <input type="text" id="user-id" placeholder="예: 12345" />
+      </div>
+      <div class="form-group">
+        <label for="customer-id">고객사 ID (ua-com-id)</label>
+        <input type="text" id="customer-id" placeholder="예: COM001" />
+      </div>
+      <div class="form-group">
+        <label for="service">서비스 (service)</label>
+        <input
+          type="text"
+          id="service"
+          placeholder="예: payment-service, websocket-service"
+        />
+      </div>
+    </div>
+
+    <!-- CS 내용 입력 (AI 분석 시 사용) -->
+    <div class="cs-content-section" style="margin-top: 20px">
+      <h3 style="margin-bottom: 8px; font-size: 16px; color: #333">
+        고객 CS 내용 (선택사항)
+      </h3>
+      <p style="font-size: 12px; color: #666; margin-bottom: 8px">
+        고객이 문의한 내용을 입력하면 AI 분석 시 함께 고려하여 더 정확한 대응
+        제안을 받을 수 있습니다.
+      </p>
+      <textarea
+        id="cs-content"
+        rows="4"
+        placeholder="예: 결제가 완료되지 않았는데 결제 완료 메시지가 표시되었습니다. 환불이 필요합니다."
+        style="
+          width: 100%;
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-family: inherit;
+          font-size: 14px;
+          resize: vertical;
+        "
+      ></textarea>
+    </div>
+
+    <!-- 고급 옵션 (기존 텍스트 쿼리) -->
+    <div class="advanced-toggle">
+      <button type="button" onclick="toggleAdvanced()">
+        <span id="advanced-toggle-text">고급 옵션 보기</span>
+      </button>
+    </div>
+    <div class="advanced-options" id="advanced-options">
+      <div class="form-group full-width">
+        <label for="query-input">추가 쿼리 (Datadog 쿼리 형식)</label>
+        <input
+          type="text"
+          id="query-input"
+          placeholder="예: status:error level:error"
+        />
+      </div>
+    </div>
+
+    <!-- 조회/분석 버튼 -->
+    <div class="query-form">
+      <button onclick="queryLogs()">조회</button>
+      <button onclick="analyzeLogs()">AI 분석</button>
+    </div>
+
+    <div
+      id="query-status"
+      style="color: #666; font-size: 14px; margin-top: 8px"
+    ></div>
+  </div>
+
+  <div class="results-section">
+    <h2>조회 결과</h2>
+    <div id="logs-container">
+      <p style="color: #999">쿼리를 입력하고 조회 버튼을 클릭하세요.</p>
+    </div>
+  </div>
+
+  <div class="analysis-section" id="analysis-section" style="display: none">
+    <h3>AI 분석 결과</h3>
+
+    <!-- 문제점 요약 -->
+    <div
+      class="analysis-block"
+      id="problem-summary-block"
+      style="display: none"
+    >
+      <h5>문제점 요약</h5>
+      <div id="problem-summary"></div>
+    </div>
+
+    <!-- 원인 추적 -->
+    <div class="analysis-block" id="root-cause-block" style="display: none">
+      <h5>원인 추적</h5>
+      <div id="root-cause"></div>
+    </div>
+
+    <!-- 사용자 행동 분석 -->
+    <div class="analysis-block" id="user-behavior-block" style="display: none">
+      <h5>사용자 행동 분석</h5>
+      <div id="user-behavior"></div>
+    </div>
+
+    <!-- CS 대응 제안 -->
+    <div id="cs-suggestions-block" style="display: none">
+      <h4>CS 대응 제안</h4>
+      <div id="cs-suggestions"></div>
+    </div>
+
+    <!-- 에러 패턴 -->
+    <div id="error-patterns-block" style="display: none">
+      <h4>발견된 에러 패턴</h4>
+      <div id="error-patterns"></div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_scripts %}
+<script>
+  // 고급 옵션 토글
+  function toggleAdvanced() {
+    const options = document.getElementById("advanced-options");
+    const toggleText = document.getElementById("advanced-toggle-text");
+    options.classList.toggle("show");
+    toggleText.textContent = options.classList.contains("show")
+      ? "고급 옵션 숨기기"
+      : "고급 옵션 보기";
+  }
+
+  // 필터 데이터 수집
+  function getFilterData() {
+    const fromTime = document.getElementById("from-time").value;
+    const toTime = document.getElementById("to-time").value;
+    const userId = document.getElementById("user-id").value.trim();
+    const customerId = document.getElementById("customer-id").value.trim();
+    const service = document.getElementById("service").value.trim();
+    const query = document.getElementById("query-input").value.trim();
+    const csContent = document.getElementById("cs-content").value.trim();
+
+    const data = {
+      limit: 100,
+    };
+
+    if (fromTime) {
+      // datetime-local을 ISO 8601 형식으로 변환
+      data.from_time = new Date(fromTime).toISOString();
+    }
+    if (toTime) {
+      data.to_time = new Date(toTime).toISOString();
+    }
+    if (userId) {
+      data.user_id = userId;
+    }
+    if (customerId) {
+      data.customer_id = customerId;
+    }
+    if (service) {
+      data.service = service;
+    }
+    if (query) {
+      data.query = query;
+    }
+    if (csContent) {
+      data.cs_content = csContent;
+    }
+
+    return data;
+  }
+
+  // 필터 검증
+  function validateFilters() {
+    const userId = document.getElementById("user-id").value.trim();
+    const customerId = document.getElementById("customer-id").value.trim();
+    const service = document.getElementById("service").value.trim();
+    const query = document.getElementById("query-input").value.trim();
+
+    if (!userId && !customerId && !service && !query) {
+      alert(
+        "사용자 ID, 고객사 ID, 서비스 또는 추가 쿼리 중 하나는 입력해야 합니다."
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  async function queryLogs() {
+    if (!validateFilters()) {
+      return;
+    }
+
+    const statusDiv = document.getElementById("query-status");
+    statusDiv.textContent = "로그 조회 중...";
+
+    try {
+      const filterData = getFilterData();
+      const res = await fetch("/logs/api/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(filterData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(
+          errorData.error?.message || errorData.error || "조회 실패"
+        );
+      }
+
+      const data = await res.json();
+      displayLogs(data.logs);
+      statusDiv.textContent = `${data.count}개의 로그를 조회했습니다.`;
+    } catch (error) {
+      console.error("로그 조회 오류:", error);
+      alert("로그 조회 중 오류가 발생했습니다: " + error.message);
+      statusDiv.textContent = "조회 실패";
+    }
+  }
+
+  async function analyzeLogs() {
+    if (!validateFilters()) {
+      return;
+    }
+
+    const statusDiv = document.getElementById("query-status");
+    statusDiv.textContent = "AI 분석 중...";
+
+    try {
+      const filterData = getFilterData();
+      const res = await fetch("/logs/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(filterData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(
+          errorData.error?.message || errorData.error || "분석 실패"
+        );
+      }
+
+      const data = await res.json();
+      displayLogs(data.logs);
+      displayAnalysis(data);
+      statusDiv.textContent = "AI 분석이 완료되었습니다.";
+    } catch (error) {
+      console.error("로그 분석 오류:", error);
+      alert("로그 분석 중 오류가 발생했습니다: " + error.message);
+      statusDiv.textContent = "분석 실패";
+    }
+  }
+
+  function displayLogs(logs) {
+    const container = document.getElementById("logs-container");
+
+    if (!logs || logs.length === 0) {
+      container.innerHTML =
+        "<p style='color: #999;'>조회된 로그가 없습니다.</p>";
+      return;
+    }
+
+    let html = `<p style="margin-bottom: 12px; color: #666;">총 ${logs.length}개의 로그</p>`;
+
+    logs.forEach((log) => {
+      const attributes = log.attributes || {};
+      // 중첩된 attributes 구조 처리 (log.attributes.attributes)
+      const nestedAttributes = attributes.attributes || {};
+
+      const message =
+        nestedAttributes.message || attributes.message || log.message || "";
+      const timestamp = attributes.timestamp || log.timestamp || "";
+      const service = attributes.service || log.service || "unknown";
+      const level =
+        attributes.status || nestedAttributes.status || log.level || "info";
+
+      // 추가 필드 추출 (중첩된 attributes에서)
+      const uiEvent = nestedAttributes["ui-event"] || "";
+      const uiScreen = nestedAttributes["ui-screen"] || "";
+      const httpRequestUri = nestedAttributes["http-request-uri"] || "";
+
+      let timestampStr = "";
+      if (timestamp) {
+        try {
+          const dt = new Date(timestamp);
+          timestampStr = dt.toLocaleString("ko-KR");
+        } catch {
+          timestampStr = String(timestamp);
+        }
+      }
+
+      html += `
+        <div class="log-entry">
+          <div style="margin-bottom: 4px;">
+            <span style="color: #666;">[${timestampStr}]</span>
+            <span style="color: #007bff;">[${service}]</span>
+            <span style="color: ${
+              level === "error"
+                ? "#dc3545"
+                : level === "warn"
+                ? "#ffc107"
+                : "#28a745"
+            };">[${level}]</span>
+          </div>
+          ${
+            uiEvent
+              ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>UI Event:</strong> ${escapeHtml(
+                  uiEvent
+                )}</div>`
+              : ""
+          }
+          ${
+            uiScreen
+              ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>UI Screen:</strong> ${escapeHtml(
+                  uiScreen
+                )}</div>`
+              : ""
+          }
+          ${
+            httpRequestUri
+              ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>HTTP URI:</strong> ${escapeHtml(
+                  httpRequestUri
+                )}</div>`
+              : ""
+          }
+          <div style="margin-top: 4px;">${escapeHtml(message)}</div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  function displayAnalysis(data) {
+    const analysisSection = document.getElementById("analysis-section");
+    analysisSection.style.display = "block";
+
+    // 문제점 요약
+    const problemSummary = data.problem_summary || "";
+    const problemBlock = document.getElementById("problem-summary-block");
+    const problemDiv = document.getElementById("problem-summary");
+    if (problemSummary) {
+      problemDiv.innerHTML = escapeHtml(problemSummary);
+      problemBlock.style.display = "block";
+    } else {
+      problemBlock.style.display = "none";
+    }
+
+    // 원인 추적
+    const rootCause = data.root_cause || "";
+    const rootCauseBlock = document.getElementById("root-cause-block");
+    const rootCauseDiv = document.getElementById("root-cause");
+    if (rootCause) {
+      rootCauseDiv.innerHTML = escapeHtml(rootCause);
+      rootCauseBlock.style.display = "block";
+    } else {
+      rootCauseBlock.style.display = "none";
+    }
+
+    // 사용자 행동 분석
+    const userBehavior = data.user_behavior || "";
+    const userBehaviorBlock = document.getElementById("user-behavior-block");
+    const userBehaviorDiv = document.getElementById("user-behavior");
+    if (userBehavior) {
+      userBehaviorDiv.innerHTML = escapeHtml(userBehavior);
+      userBehaviorBlock.style.display = "block";
+    } else {
+      userBehaviorBlock.style.display = "none";
+    }
+
+    // CS 대응 제안
+    const csSuggestionsBlock = document.getElementById("cs-suggestions-block");
+    const suggestionsDiv = document.getElementById("cs-suggestions");
+    if (data.cs_suggestions && data.cs_suggestions.length > 0) {
+      let suggestionsHtml = "";
+      data.cs_suggestions.forEach((suggestion) => {
+        suggestionsHtml += `<div class="suggestion-item">${escapeHtml(
+          suggestion
+        )}</div>`;
+      });
+      suggestionsDiv.innerHTML = suggestionsHtml;
+      csSuggestionsBlock.style.display = "block";
+    } else {
+      csSuggestionsBlock.style.display = "none";
+    }
+
+    // 에러 패턴
+    const errorPatternsBlock = document.getElementById("error-patterns-block");
+    const errorPatternsDiv = document.getElementById("error-patterns");
+    if (data.error_patterns && data.error_patterns.length > 0) {
+      let patternsHtml = "";
+      data.error_patterns.forEach((pattern) => {
+        patternsHtml += `<div class="error-pattern-item">${escapeHtml(
+          pattern
+        )}</div>`;
+      });
+      errorPatternsDiv.innerHTML = patternsHtml;
+      errorPatternsBlock.style.display = "block";
+    } else {
+      errorPatternsBlock.style.display = "none";
+    }
+
+    // 하위 호환성: 기존 summary 필드가 있으면 문제점 요약으로 표시
+    if (!problemSummary && data.summary) {
+      problemDiv.innerHTML = escapeHtml(data.summary);
+      problemBlock.style.display = "block";
+    }
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Enter 키로 조회 (모든 입력 필드에서)
+  document.addEventListener("DOMContentLoaded", () => {
+    const inputs = [
+      document.getElementById("from-time"),
+      document.getElementById("to-time"),
+      document.getElementById("user-id"),
+      document.getElementById("customer-id"),
+      document.getElementById("service"),
+      document.getElementById("query-input"),
+    ];
+
+    inputs.forEach((input) => {
+      if (input) {
+        input.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            queryLogs();
+          }
+        });
+      }
+    });
+
+    // 기본 종료 시간을 현재 시간으로 설정
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById("to-time").value = now.toISOString().slice(0, 16);
+
+    // 기본 시작 시간을 1시간 전으로 설정
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    document.getElementById("from-time").value = oneHourAgo
+      .toISOString()
+      .slice(0, 16);
+  });
+</script>
+{% endblock %}
