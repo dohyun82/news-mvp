@@ -209,6 +209,20 @@ def format_logs_for_analysis(logs: List[Dict]) -> str:
         user_id = nested_attrs.get("ua-user-id") or attributes.get("ua-user-id", "")
         customer_id = nested_attrs.get("ua-com-id") or attributes.get("ua-com-id", "")
         
+        # 추가 필드 추출 (AI 분석에 포함)
+        device_model = nested_attrs.get("ua-device-model") or attributes.get("ua-device-model", "")
+        app_version = nested_attrs.get("ua-device-cv") or attributes.get("ua-device-cv", "")
+        ui_event = nested_attrs.get("ui-event") or attributes.get("ui-event", "")
+        ui_screen = nested_attrs.get("ui-screen") or attributes.get("ui-screen", "")
+        ui_args_raw = nested_attrs.get("ui-args") or attributes.get("ui-args", "")
+        # ui-args가 딕셔너리인 경우 JSON 문자열로 변환
+        if ui_args_raw and isinstance(ui_args_raw, dict):
+            ui_args = json.dumps(ui_args_raw, ensure_ascii=False)
+        elif ui_args_raw:
+            ui_args = str(ui_args_raw)
+        else:
+            ui_args = ""
+        
         # 타임스탬프 포맷팅 (간단한 형식 - 시간만 표시)
         if timestamp:
             try:
@@ -238,11 +252,22 @@ def format_logs_for_analysis(logs: List[Dict]) -> str:
         if customer_id and customer_id != prev_customer_id:
             log_parts.append(f"[c:{customer_id[:6]}...]")
         
+        # 추가 정보 추가 (AI 분석에 포함)
+        metadata_parts = []
+        if device_model:
+            metadata_parts.append(f"device-model:{device_model}")
+        if app_version:
+            metadata_parts.append(f"app-version:{app_version}")
+        if ui_event:
+            metadata_parts.append(f"ui-event:{ui_event}")
+        if ui_screen:
+            metadata_parts.append(f"ui-screen:{ui_screen}")
+        if ui_args:
+            metadata_parts.append(f"ui-args:{ui_args}")
+        
         # 메시지 처리: 없거나 짧으면 기본 메시지 생성
         if not message or len(message.strip()) < 3:
             # 메시지가 없어도 다른 정보(레벨, 서비스, UI 이벤트 등)를 표시
-            ui_event = nested_attrs.get("ui-event") or attributes.get("ui-event", "")
-            ui_screen = nested_attrs.get("ui-screen") or attributes.get("ui-screen", "")
             http_uri = nested_attrs.get("http-request-uri") or attributes.get("http-request-uri", "")
             
             # 대체 메시지 생성
@@ -251,6 +276,8 @@ def format_logs_for_analysis(logs: List[Dict]) -> str:
                 message_parts.append(f"ui-event:{ui_event}")
             if ui_screen:
                 message_parts.append(f"ui-screen:{ui_screen}")
+            if ui_args:
+                message_parts.append(f"ui-args:{ui_args}")
             if http_uri:
                 message_parts.append(f"http-request-uri:{http_uri}")
             if service and service != "unknown":
@@ -265,6 +292,10 @@ def format_logs_for_analysis(logs: List[Dict]) -> str:
             # 메시지 길이 제한 (각 로그당 최대 150자로 더 줄임)
             if len(message) > 150:
                 message = message[:147] + "..."
+        
+        # 메타데이터가 있으면 메시지에 추가
+        if metadata_parts:
+            message = f"{message} ({' | '.join(metadata_parts)})"
         
         log_parts.append(message)
         lines.append(" ".join(log_parts))

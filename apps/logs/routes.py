@@ -91,8 +91,21 @@ def query_logs_route():
         if not isinstance(limit, int) or limit <= 0:
             return jsonify({"error": "limit must be a positive integer"}), 400
         
+        # Datadog 요청 파라미터 로깅
+        logger = logging.getLogger("logs")
+        logger.info(
+            "Datadog 로그 조회 요청 - query: %s, from_time: %s, to_time: %s, limit: %d",
+            query,
+            from_time.isoformat() if from_time else None,
+            to_time.isoformat() if to_time else None,
+            limit
+        )
+        
         # Datadog에서 로그 조회
         logs = query_logs(query, from_time=from_time, to_time=to_time, limit=limit)
+        
+        # 조회 결과 로깅
+        logger.info("Datadog 로그 조회 완료 - 조회된 로그 개수: %d", len(logs))
         
         return jsonify({
             "logs": logs,

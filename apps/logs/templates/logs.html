@@ -45,7 +45,22 @@ background-color: white; border-left: 3px solid #007bff; margin-bottom: 8px;
 border-radius: 4px; } .error-pattern-item { padding: 6px 10px; background-color:
 #fff3cd; border-left: 3px solid #ffc107; margin-bottom: 6px; border-radius: 4px;
 font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
-#666; cursor: not-allowed; opacity: 0.6; } {% endblock %} {% block content %}
+#666; cursor: not-allowed; opacity: 0.6; } /* 로딩 오버레이 스타일 */
+.loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center;
+align-items: center; z-index: 9999; } .loading-overlay.active { display: flex; }
+.loading-spinner { width: 50px; height: 50px; border: 4px solid #f3f3f3;
+border-top: 4px solid #4a90e2; border-radius: 50%; animation: spin 1s linear
+infinite; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform:
+rotate(360deg); } } .loading-text { color: white; margin-top: 16px; font-size:
+16px; } .loading-content { display: flex; flex-direction: column; align-items:
+center; } {% endblock %} {% block content %}
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-content">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-text">처리 중...</div>
+  </div>
+</div>
 <div class="logs-container">
   <h1>로그 분석</h1>
   <p>
@@ -240,6 +255,35 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
 </div>
 {% endblock %} {% block extra_scripts %}
 <script>
+  // 로딩 상태 관리
+  let isLoading = false;
+
+  function showLoading(text = "처리 중...") {
+    isLoading = true;
+    const overlay = document.getElementById("loading-overlay");
+    const loadingText = document.getElementById("loading-text");
+    if (overlay) {
+      overlay.classList.add("active");
+    }
+    if (loadingText) {
+      loadingText.textContent = text;
+    }
+    // 모든 버튼 비활성화
+    document.querySelectorAll("button").forEach((btn) => {
+      btn.disabled = true;
+    });
+  }
+
+  function hideLoading() {
+    isLoading = false;
+    const overlay = document.getElementById("loading-overlay");
+    if (overlay) {
+      overlay.classList.remove("active");
+    }
+    // 버튼 상태 업데이트
+    checkButtonState();
+  }
+
   // 고급 옵션 토글
   function toggleAdvanced() {
     const options = document.getElementById("advanced-options");
@@ -368,6 +412,7 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
   }
 
   async function queryLogs() {
+    if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     if (!validateFilters()) {
       return;
     }
@@ -376,6 +421,7 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
     statusDiv.textContent = "로그 조회 중...";
 
     try {
+      showLoading("로그 조회 중...");
       const filterData = getFilterData();
       const res = await fetch("/logs/api/query", {
         method: "POST",
@@ -397,10 +443,13 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
       console.error("로그 조회 오류:", error);
       alert("로그 조회 중 오류가 발생했습니다: " + error.message);
       statusDiv.textContent = "조회 실패";
+    } finally {
+      hideLoading();
     }
   }
 
   async function analyzeLogs() {
+    if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     if (!validateFiltersForAnalysis()) {
       return;
     }
@@ -409,6 +458,7 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
     statusDiv.textContent = "AI 분석 중...";
 
     try {
+      showLoading("AI 분석 중...");
       const filterData = getFilterData();
       const res = await fetch("/logs/api/analyze", {
         method: "POST",
@@ -431,6 +481,8 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
       console.error("로그 분석 오류:", error);
       alert("로그 분석 중 오류가 발생했습니다: " + error.message);
       statusDiv.textContent = "분석 실패";
+    } finally {
+      hideLoading();
     }
   }
 
@@ -452,23 +504,38 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
 
       const message =
         nestedAttributes.message || attributes.message || log.message || "";
-      const timestamp = attributes.timestamp || log.timestamp || "";
+      // app-timestamp 우선 사용, 없으면 timestamp 사용
+      const appTimestamp =
+        nestedAttributes["app-timestamp"] ||
+        attributes["app-timestamp"] ||
+        attributes.timestamp ||
+        log.timestamp ||
+        "";
       const service = attributes.service || log.service || "unknown";
-      const level =
-        attributes.status || nestedAttributes.status || log.level || "info";
 
       // 추가 필드 추출 (중첩된 attributes에서)
       const uiEvent = nestedAttributes["ui-event"] || "";
       const uiScreen = nestedAttributes["ui-screen"] || "";
       const httpRequestUri = nestedAttributes["http-request-uri"] || "";
+      let uiArgs = nestedAttributes["ui-args"] || "";
+      // ui-args가 객체인 경우 JSON 문자열로 변환
+      if (uiArgs && typeof uiArgs === "object") {
+        try {
+          uiArgs = JSON.stringify(uiArgs);
+        } catch {
+          uiArgs = String(uiArgs);
+        }
+      }
+      const deviceModel = nestedAttributes["ua-device-model"] || "";
+      const appVersion = nestedAttributes["ua-device-cv"] || "";
 
       let timestampStr = "";
-      if (timestamp) {
+      if (appTimestamp) {
         try {
-          const dt = new Date(timestamp);
+          const dt = new Date(appTimestamp);
           timestampStr = dt.toLocaleString("ko-KR");
         } catch {
-          timestampStr = String(timestamp);
+          timestampStr = String(appTimestamp);
         }
       }
 
@@ -477,14 +544,21 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
           <div style="margin-bottom: 4px;">
             <span style="color: #666;">[${timestampStr}]</span>
             <span style="color: #007bff;">[${service}]</span>
-            <span style="color: ${
-              level === "error"
-                ? "#dc3545"
-                : level === "warn"
-                ? "#ffc107"
-                : "#28a745"
-            };">[${level}]</span>
           </div>
+          ${
+            deviceModel
+              ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>스마트폰 모델명:</strong> ${escapeHtml(
+                  deviceModel
+                )}</div>`
+              : ""
+          }
+          ${
+            appVersion
+              ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>앱 버전:</strong> ${escapeHtml(
+                  appVersion
+                )}</div>`
+              : ""
+          }
           ${
             uiEvent
               ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>UI Event:</strong> ${escapeHtml(
@@ -496,6 +570,13 @@ font-size: 13px; } .query-form button:disabled { background-color: #ccc; color:
             uiScreen
               ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>UI Screen:</strong> ${escapeHtml(
                   uiScreen
+                )}</div>`
+              : ""
+          }
+          ${
+            uiArgs
+              ? `<div style="margin-bottom: 2px; color: #6c757d; font-size: 12px;"><strong>UI Args:</strong> ${escapeHtml(
+                  uiArgs
                 )}</div>`
               : ""
           }
