@@ -289,9 +289,9 @@ def format_logs_for_analysis(logs: List[Dict]) -> str:
                 # 최소한의 정보라도 표시
                 message = f"[{level}] 로그 (메시지 없음)"
         else:
-            # 메시지 길이 제한 (각 로그당 최대 150자로 더 줄임)
-            if len(message) > 150:
-                message = message[:147] + "..."
+            # 메시지 길이 제한 (각 로그당 최대 300자로 증가)
+            if len(message) > 300:
+                message = message[:297] + "..."
         
         # 메타데이터가 있으면 메시지에 추가
         if metadata_parts:

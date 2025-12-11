@@ -190,7 +190,7 @@ def analyze_logs_with_ai(
     *,
     from_time: Optional[datetime] = None,
     to_time: Optional[datetime] = None,
-    limit: int = 100,
+    limit: int = 200,
     user_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     service: Optional[str] = None,
@@ -254,23 +254,23 @@ def analyze_logs_with_ai(
     
     # 에러/경고 로그가 없으면 info 로그도 포함 (최소한의 샘플)
     if not error_warning_logs:
-        error_warning_logs = logs[:10]  # 최대 10개만
+        error_warning_logs = logs[:50]  # 최대 50개만
     
     # 2단계: 로컬에서 핵심 에러 패턴 추출 (AI 전송 전 요약)
-    error_summary = _extract_error_summary_locally(error_warning_logs[:20])  # 최대 20개만
+    error_summary = _extract_error_summary_locally(error_warning_logs[:50])  # 최대 50개만
     
-    # 3단계: 최소한의 로그만 포맷팅 (에러/경고만, 최대 15개)
-    critical_logs = error_warning_logs[:15]
+    # 3단계: 최소한의 로그만 포맷팅 (에러/경고만, 최대 50개)
+    critical_logs = error_warning_logs[:50]
     formatted_logs = format_logs_for_analysis(critical_logs)
     
-    # 텍스트 길이 제한 (2000자로 더 감소)
-    formatted_logs_text = formatted_logs[:2000]
+    # 텍스트 길이 제한 (10000자로 증가)
+    formatted_logs_text = formatted_logs[:10000]
     
-    # CS 내용 간소화 (300자로 제한)
+    # CS 내용 간소화 (500자로 제한)
     cs_context = ""
     if cs_content:
-        cs_content_short = cs_content[:300]
-        if len(cs_content) > 300:
+        cs_content_short = cs_content[:500]
+        if len(cs_content) > 500:
             cs_content_short += "..."
         cs_context = f"\n\n고객 문의: {cs_content_short}"
     
@@ -280,7 +280,7 @@ def analyze_logs_with_ai(
 에러 요약:
 {error_summary}
 
-주요 로그 (최대 15개):
+주요 로그 (최대 50개):
 {formatted_logs_text}
 
 다음 형식으로 분석해주세요:
@@ -469,7 +469,7 @@ def _extract_error_summary_locally(logs: List[Dict]) -> str:
     프롬프트 크기를 대폭 줄이고 처리 시간을 단축합니다.
     
     Args:
-        logs: 에러/경고 로그 목록 (최대 20개 권장)
+        logs: 에러/경고 로그 목록 (최대 50개 권장)
         
     Returns:
         에러 요약 텍스트 (최대 500자)
@@ -481,7 +481,7 @@ def _extract_error_summary_locally(logs: List[Dict]) -> str:
     error_messages = []
     warning_count = 0
     
-    for log in logs[:20]:  # 최대 20개만 분석
+    for log in logs[:50]:  # 최대 50개만 분석
         attributes = log.get("attributes", {})
         nested_attrs = attributes.get("attributes", {})
         level = attributes.get("status") or nested_attrs.get("status") or attributes.get("level") or "info"
