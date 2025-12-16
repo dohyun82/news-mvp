@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from shared.integrations.datadog import query_logs, format_logs_for_analysis
 from shared.ai.openai_client import get_summary_from_openai
@@ -245,26 +246,21 @@ def analyze_logs_with_ai(
         }
     
     # 1단계: 로컬 전처리 - 에러/경고 로그만 추출 (핵심만 분석)
-    error_warning_logs = []
-    for log in logs:
-        attributes = log.get("attributes", {})
-        level = attributes.get("status", attributes.get("level", "info")).lower()
-        if level in ["error", "critical", "fatal", "warn", "warning"]:
-            error_warning_logs.append(log)
+    # 하지만 그룹화를 위해 모든 로그를 고려하되, 에러/경고는 별도로 플래그 처리
     
-    # 에러/경고 로그가 없으면 info 로그도 포함 (최소한의 샘플)
-    if not error_warning_logs:
-        error_warning_logs = logs[:50]  # 최대 50개만
+    # 2단계: 로그 패턴 그룹화 (개선된 로직)
+    # 최대 500개의 로그를 가져왔다고 가정하고 패턴 분석 수행
+    grouped_patterns = _group_logs_by_pattern(logs)
     
-    # 2단계: 로컬에서 핵심 에러 패턴 추출 (AI 전송 전 요약)
-    error_summary = _extract_error_summary_locally(error_warning_logs[:50])  # 최대 50개만
+    # AI 프롬프트 생성을 위한 요약문 작성
+    pattern_summary = _format_patterns_for_ai(grouped_patterns)
     
-    # 3단계: 최소한의 로그만 포맷팅 (에러/경고만, 최대 50개)
-    critical_logs = error_warning_logs[:50]
-    formatted_logs = format_logs_for_analysis(critical_logs)
+    # 로그 샘플 (최대 10개, 원본 확인용)
+    sample_logs_text = format_logs_for_analysis(logs[:10])
     
-    # 텍스트 길이 제한 (10000자로 증가)
-    formatted_logs_text = formatted_logs[:10000]
+    # 텍스트 길이 제한
+    if len(pattern_summary) > 15000:
+        pattern_summary = pattern_summary[:15000] + "...(truncated)"
     
     # CS 내용 간소화 (500자로 제한)
     cs_context = ""
@@ -277,22 +273,23 @@ def analyze_logs_with_ai(
     # 최소한의 프롬프트 생성 (핵심만)
     analysis_prompt = f"""로그 분석 요청입니다.{cs_context}
 
-에러 요약:
-{error_summary}
+분석 대상 로그 요약 (총 {len(logs)}건 분석됨):
 
-주요 로그 (최대 50개):
-{formatted_logs_text}
+{pattern_summary}
+
+참고용 최신 원본 로그 (10건):
+{sample_logs_text}
 
 다음 형식으로 분석해주세요:
 
 ## 문제점 요약
-(주요 에러 요약)
+(발생 빈도가 높거나 심각한 에러 패턴 위주로 요약)
 
 ## 원인 추적
-(에러 원인 시간순 추적)
+(타임라인 기반으로 어떤 패턴이 문제를 유발했는지 추론)
 
 ## 사용자 행동 분석
-(로그에서 파악된 사용자 행동)
+(로그 패턴을 통해 사용자가 어떤 행동을 하다가 문제가 발생했는지 분석)
 
 ## CS 대응 제안
 (구체적 대응 방안 번호로 나열)
@@ -558,6 +555,160 @@ def _extract_error_patterns(logs: List[Dict]) -> List[str]:
                         patterns.append(pattern)
     
     return patterns[:10]  # 최대 10개
+
+
+def _normalize_log_message(message: str) -> str:
+    """Normalize log message to create a pattern signature.
+    
+    Removes variable parts like IDs, timestamps, IP addresses, etc.
+    
+    Args:
+        message: Raw log message
+        
+    Returns:
+        Normalized message signature
+    """
+    if not message:
+        return ""
+        
+    # 1. UUID/GUID (e.g., 123e4567-e89b-12d3-a456-426614174000)
+    message = re.sub(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', '<UUID>', message)
+    
+    # 2. IP Address (IPv4)
+    message = re.sub(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', '<IP>', message)
+    
+    # 3. Date/Time (ISO-like patterns)
+    message = re.sub(r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?', '<DATE>', message)
+    
+    # 4. Sequences of numbers (IDs, excessive digits) - 3자리 이상
+    message = re.sub(r'\b\d{3,}\b', '<NUM>', message)
+    
+    # 5. Hex strings (memory addresses, hashes) - e.g. 0x123abc
+    message = re.sub(r'0x[0-9a-fA-F]+', '<HEX>', message)
+    
+    # 6. User IDs inside brackets or similar (specific to app logs)
+    # e.g., [u:12345] -> [u:<NUM>]
+    
+    return message.strip()
+
+
+def _group_logs_by_pattern(logs: List[Dict]) -> List[Dict]:
+    """Group logs by their normalized pattern.
+    
+    Args:
+        logs: List of log entries
+        
+    Returns:
+        List of pattern groups, sorted by count (descending) and importance (errors first)
+    """
+    groups = {}
+    
+    for log in logs:
+        attributes = log.get("attributes", {})
+        nested_attrs = attributes.get("attributes", {})
+        
+        # 기본 속성 추출
+        service = attributes.get("service", log.get("service", "unknown"))
+        status = attributes.get("status") or nested_attrs.get("status") or attributes.get("level") or "info"
+        status = status.upper()
+        
+        # 메시지 추출
+        original_message = nested_attrs.get("message") or attributes.get("message") or log.get("message", "")
+        if len(original_message) > 500:
+            original_message = original_message[:500] + "..."
+            
+        # 정규화
+        normalized_msg = _normalize_log_message(original_message)
+        
+        # 시그니처 키 생성 (Service + Status + Normalized Message)
+        signature = f"{service}|{status}|{normalized_msg}"
+        
+        if signature not in groups:
+            groups[signature] = {
+                "signature": signature,
+                "service": service,
+                "status": status,
+                "pattern_message": normalized_msg,
+                "count": 0,
+                "first_seen": None,
+                "last_seen": None,
+                "sample_messages": [],
+                "user_ids": set(),
+            }
+            
+        group = groups[signature]
+        group["count"] += 1
+        
+        # 타임스탬프 처리
+        timestamp = (
+            nested_attrs.get("app-timestamp") or 
+            attributes.get("app-timestamp") or 
+            attributes.get("timestamp") or 
+            log.get("timestamp")
+        )
+        # 타임스탬프 파싱 (문자열인 경우만)
+        if isinstance(timestamp, str):
+            try:
+                ts_val = timestamp.replace('Z', '+00:00')[:19] # 초 단위까지만
+            except:
+                ts_val = str(timestamp)
+        else:
+            ts_val = str(timestamp)
+            
+        if group["first_seen"] is None or ts_val < group["first_seen"]:
+            group["first_seen"] = ts_val
+        if group["last_seen"] is None or ts_val > group["last_seen"]:
+            group["last_seen"] = ts_val
+            
+        # 샘플 메시지 저장 (최대 3개, 서로 다른 내용만)
+        if len(group["sample_messages"]) < 3:
+            if original_message not in group["sample_messages"]:
+                group["sample_messages"].append(original_message)
+                
+        # 사용자 ID 수집 (영향받은 사용자 수 파악용, 최대 5개)
+        user_id = nested_attrs.get("ua-user-id") or attributes.get("ua-user-id")
+        if user_id and len(group["user_ids"]) < 5:
+            group["user_ids"].add(str(user_id))
+            
+    # 리스트로 변환 및 정렬
+    # 정렬 우선순위: 1. 에러/경고 여부, 2. 발생 횟수
+    pattern_list = list(groups.values())
+    
+    def sort_key(item):
+        is_error = 1 if item["status"] in ["ERROR", "CRITICAL", "FATAL", "WARN", "WARNING"] else 0
+        return (is_error, item["count"])
+        
+    pattern_list.sort(key=sort_key, reverse=True)
+    
+    return pattern_list
+
+
+def _format_patterns_for_ai(patterns: List[Dict]) -> str:
+    """Format log patterns for AI prompt.
+    
+    Args:
+        patterns: List of log pattern groups
+        
+    Returns:
+        Formatted string description of patterns
+    """
+    lines = []
+    
+    for i, p in enumerate(patterns[:20], 1): # 상위 20개 패턴만 상세 분석
+        users_affected = f", Affected Users: {len(p['user_ids'])}+" if p['user_ids'] else ""
+        lines.append(f"{i}. [{p['status']}] {p['service']} (Count: {p['count']}{users_affected})")
+        lines.append(f"   Time: {p['first_seen']} ~ {p['last_seen']}")
+        lines.append(f"   Pattern: {p['pattern_message']}")
+        
+        # 샘플 하나만 표시
+        if p['sample_messages']:
+             lines.append(f"   Sample: {p['sample_messages'][0]}")
+        lines.append("")
+        
+    if len(patterns) > 20:
+        lines.append(f"... and {len(patterns) - 20} more patterns.")
+        
+    return "\n".join(lines)
 
 
 __all__ = [

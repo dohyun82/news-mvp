@@ -86,11 +86,11 @@ center; } {% endblock %} {% block content %}
         </div>
         <div class="form-group">
           <label for="from-time">시작 시간</label>
-          <input type="datetime-local" id="from-time" />
+          <input type="datetime-local" id="from-time" value="{{ default_from_time }}" autocomplete="off" />
         </div>
         <div class="form-group">
           <label for="to-time">종료 시간</label>
-          <input type="datetime-local" id="to-time" />
+          <input type="datetime-local" id="to-time" value="{{ default_to_time }}" autocomplete="off" />
         </div>
         <div class="form-group">
           <label for="app-installation"
@@ -128,32 +128,7 @@ center; } {% endblock %} {% block content %}
         </div>
       </div>
 
-      <!-- 고급 옵션 (기존 텍스트 쿼리) -->
-      <div class="advanced-toggle">
-        <button type="button" onclick="toggleAdvanced()">
-          <span id="advanced-toggle-text">고급 옵션 보기</span>
-        </button>
-      </div>
-      <div class="advanced-options" id="advanced-options">
-        <div class="form-group full-width">
-          <label for="query-input">추가 쿼리 (Datadog 쿼리 형식)</label>
-          <input
-            type="text"
-            id="query-input"
-            placeholder="예: status:error level:error"
-          />
-        </div>
-      </div>
 
-      <!-- 조회 버튼 -->
-      <div class="query-form">
-        <button id="query-btn" onclick="queryLogs()" disabled>조회</button>
-      </div>
-
-      <div
-        id="query-status"
-        style="color: #666; font-size: 14px; margin-top: 8px"
-      ></div>
 
       <!-- CS 내용 입력 (AI 분석 시 사용) -->
       <div class="cs-content-section" style="margin-top: 24px">
@@ -181,10 +156,10 @@ center; } {% endblock %} {% block content %}
         ></textarea>
       </div>
 
-      <!-- AI 분석 버튼 -->
+      <!-- AI 분석 버튼 (통합) -->
       <div class="query-form" style="margin-top: 16px">
-        <button id="analyze-btn" onclick="analyzeLogs()" disabled>
-          AI 분석
+        <button id="analyze-btn" onclick="analyzeLogs()" disabled style="width: 100%; padding: 12px; font-size: 16px; font-weight: bold;">
+          로그 조회 및 AI 분석
         </button>
       </div>
     </div>
@@ -284,18 +259,8 @@ center; } {% endblock %} {% block content %}
     checkButtonState();
   }
 
-  // 고급 옵션 토글
-  function toggleAdvanced() {
-    const options = document.getElementById("advanced-options");
-    const toggleText = document.getElementById("advanced-toggle-text");
-    options.classList.toggle("show");
-    toggleText.textContent = options.classList.contains("show")
-      ? "고급 옵션 숨기기"
-      : "고급 옵션 보기";
-  }
-
   // 필터 데이터 수집
-  function getFilterData() {
+  function getFilterData(limit = 100) {
     const fromTime = document.getElementById("from-time").value;
     const toTime = document.getElementById("to-time").value;
     const userId = document.getElementById("user-id").value.trim();
@@ -304,11 +269,10 @@ center; } {% endblock %} {% block content %}
     const appInstallation = document
       .getElementById("app-installation")
       .value.trim();
-    const query = document.getElementById("query-input").value.trim();
     const csContent = document.getElementById("cs-content").value.trim();
 
     const data = {
-      limit: 100,
+      limit: limit,
     };
 
     if (fromTime) {
@@ -329,9 +293,6 @@ center; } {% endblock %} {% block content %}
     }
     if (appInstallation) {
       data.app_installation = appInstallation;
-    }
-    if (query) {
-      data.query = query;
     }
     // CS 내용은 필수이므로 항상 포함
     if (csContent) {
@@ -403,12 +364,11 @@ center; } {% endblock %} {% block content %}
     // CS 내용도 10자 이상 입력되어야 함
     const hasValidCsContent = csContent.length >= 10;
 
-    // 조회 버튼: ID 필드 중 하나만 10자 이상이면 활성화
-    document.getElementById("query-btn").disabled = !hasRequiredId;
-
     // AI 분석 버튼: ID 필드 중 하나와 CS 내용 모두 10자 이상이어야 활성화
-    document.getElementById("analyze-btn").disabled =
-      !hasRequiredId || !hasValidCsContent;
+    const analyzeBtn = document.getElementById("analyze-btn");
+    if (analyzeBtn) {
+        analyzeBtn.disabled = !hasRequiredId || !hasValidCsContent;
+    }
   }
 
   async function queryLogs() {
@@ -417,12 +377,9 @@ center; } {% endblock %} {% block content %}
       return;
     }
 
-    const statusDiv = document.getElementById("query-status");
-    statusDiv.textContent = "로그 조회 중...";
-
     try {
       showLoading("로그 조회 중...");
-      const filterData = getFilterData();
+      const filterData = getFilterData(500); // User requested 500 logs for Query
       const res = await fetch("/logs/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -438,11 +395,9 @@ center; } {% endblock %} {% block content %}
 
       const data = await res.json();
       displayLogs(data.logs);
-      statusDiv.textContent = `${data.count}개의 로그를 조회했습니다.`;
     } catch (error) {
       console.error("로그 조회 오류:", error);
       alert("로그 조회 중 오류가 발생했습니다: " + error.message);
-      statusDiv.textContent = "조회 실패";
     } finally {
       hideLoading();
     }
@@ -454,12 +409,9 @@ center; } {% endblock %} {% block content %}
       return;
     }
 
-    const statusDiv = document.getElementById("query-status");
-    statusDiv.textContent = "AI 분석 중...";
-
     try {
       showLoading("AI 분석 중...");
-      const filterData = getFilterData();
+      const filterData = getFilterData(500); // 500 logs for Analysis
       const res = await fetch("/logs/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -476,11 +428,9 @@ center; } {% endblock %} {% block content %}
       const data = await res.json();
       displayLogs(data.logs);
       displayAnalysis(data);
-      statusDiv.textContent = "AI 분석이 완료되었습니다.";
     } catch (error) {
       console.error("로그 분석 오류:", error);
       alert("로그 분석 중 오류가 발생했습니다: " + error.message);
-      statusDiv.textContent = "분석 실패";
     } finally {
       hideLoading();
     }
@@ -587,6 +537,22 @@ center; } {% endblock %} {% block content %}
                 )}</div>`
               : ""
           }
+          ${
+            log.decoded_response_body
+              ? `<div style="margin-top: 8px; background-color: #f8f9fa; padding: 8px; border-radius: 4px; border: 1px solid #e9ecef;">
+                   <details>
+                     <summary style="cursor: pointer; color: #007bff; font-weight: 500; font-size: 12px; outline: none;">
+                       HTTP Response Body (Decoded)
+                     </summary>
+                     <pre style="margin-top: 8px; margin-bottom: 0; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${
+                       typeof log.decoded_response_body === 'object' 
+                         ? escapeHtml(JSON.stringify(log.decoded_response_body, null, 2)) 
+                         : escapeHtml(log.decoded_response_body)
+                     }</pre>
+                   </details>
+                 </div>`
+              : ""
+          }
           <div style="margin-top: 4px;">${escapeHtml(message)}</div>
         </div>
       `;
@@ -689,7 +655,6 @@ center; } {% endblock %} {% block content %}
       document.getElementById("customer-id"),
       document.getElementById("service"),
       document.getElementById("app-installation"),
-      document.getElementById("query-input"),
     ];
 
     inputs.forEach((input) => {
@@ -724,16 +689,21 @@ center; } {% endblock %} {% block content %}
     // 초기 버튼 상태 확인
     checkButtonState();
 
-    // 기본 종료 시간을 현재 시간으로 설정
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    document.getElementById("to-time").value = now.toISOString().slice(0, 16);
+    // 브라우저가 새로고침 시 빈 값을 복원하는 경우를 방지하기 위해 명시적으로 값 할당
+    const fromTimeInput = document.getElementById("from-time");
+    const toTimeInput = document.getElementById("to-time");
+    
+    // 서버에서 전달된 기본값 (Jinja2 렌더링)
+    const defaultFromTime = "{{ default_from_time }}";
+    const defaultToTime = "{{ default_to_time }}";
 
-    // 기본 시작 시간을 1시간 전으로 설정
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    document.getElementById("from-time").value = oneHourAgo
-      .toISOString()
-      .slice(0, 16);
+    if (fromTimeInput && !fromTimeInput.value && defaultFromTime) {
+      fromTimeInput.value = defaultFromTime;
+    }
+    
+    if (toTimeInput && !toTimeInput.value && defaultToTime) {
+      toTimeInput.value = defaultToTime;
+    }
   });
 </script>
 {% endblock %}

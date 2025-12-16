@@ -10,14 +10,51 @@ for analysis.
 
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from core.config import DatadogConfig
+
+
+def _try_decode_gzip_body(log: Dict) -> None:
+    """Try to decode gzip compressed http-response-body in log attributes."""
+    try:
+        attributes = log.get("attributes", {})
+        # Check standard location and nested location
+        body = attributes.get("http-response-body")
+        
+        # If not found in top level, check nested attributes
+        if not body:
+            nested_attrs = attributes.get("attributes", {})
+            body = nested_attrs.get("http-response-body")
+            
+        if body and isinstance(body, str):
+            # Try to decode base64 and decompress gzip
+            try:
+                compressed_data = base64.b64decode(body)
+                decompressed_data = gzip.decompress(compressed_data)
+                decoded_text = decompressed_data.decode('utf-8')
+                
+                # Check if it's JSON
+                try:
+                    json_data = json.loads(decoded_text)
+                    # Store decoded data in a new field
+                    log["decoded_response_body"] = json_data
+                except json.JSONDecodeError:
+                    # If not JSON, store as text
+                    log["decoded_response_body"] = decoded_text
+            except (base64.binascii.Error, gzip.BadGzipFile, UnicodeDecodeError):
+                # Valid string but not gzip/base64, ignore
+                pass
+    except Exception:
+        # Fail silently for any other errors to not disrupt log flow
+        pass
 
 
 def query_logs(
@@ -102,6 +139,11 @@ def query_logs(
                 # 성공 시: {"data": [...], "meta": {...}}
                 if "data" in response_data:
                     logs = response_data.get("data", [])
+                    
+                    # Process logs to decode gzip bodies if present
+                    for log in logs:
+                        _try_decode_gzip_body(log)
+                        
                     if attempt > 1:
                         print(f"datadog.py: Logs queried successfully (attempt {attempt}), {len(logs)} logs")
                     else:

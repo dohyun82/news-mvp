@@ -21,7 +21,16 @@ from shared.ai.openai_client import get_summary_from_openai
 @logs_bp.route('')
 def index():
     """로그 분석 대시보드 페이지."""
-    return render_template('logs.html', current_page='logs')
+    now = datetime.now()
+    default_to_time = now.strftime('%Y-%m-%dT%H:%M')
+    default_from_time = now.replace(hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%dT%H:%M')
+    
+    return render_template(
+        'logs.html', 
+        current_page='logs',
+        default_from_time=default_from_time,
+        default_to_time=default_to_time
+    )
 
 
 @logs_bp.route('/api/query', methods=['POST', 'OPTIONS'])
@@ -181,7 +190,7 @@ def analyze_logs_route():
             except ValueError:
                 return jsonify({"error": "invalid to_time format. Use ISO 8601 format"}), 400
         
-        limit = data.get("limit", 100)
+        limit = data.get("limit", 500)
         if not isinstance(limit, int) or limit <= 0:
             return jsonify({"error": "limit must be a positive integer"}), 400
         
