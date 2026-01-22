@@ -251,9 +251,10 @@ def analyze_logs_with_ai(
     # 2단계: 로그 패턴 그룹화 (개선된 로직)
     # 최대 500개의 로그를 가져왔다고 가정하고 패턴 분석 수행
     grouped_patterns = _group_logs_by_pattern(logs)
+    total_patterns = len(grouped_patterns)
     
     # AI 프롬프트 생성을 위한 요약문 작성
-    pattern_summary = _format_patterns_for_ai(grouped_patterns)
+    pattern_summary, patterns_included = _format_patterns_for_ai(grouped_patterns)
     
     # 로그 샘플 (최대 10개, 원본 확인용)
     sample_logs_text = format_logs_for_analysis(logs[:10])
@@ -312,7 +313,14 @@ def analyze_logs_with_ai(
         "root_cause": parsed_result.get("root_cause", ""),
         "user_behavior": parsed_result.get("user_behavior", ""),
         "cs_suggestions": parsed_result.get("cs_suggestions", []),
-        "error_patterns": _extract_error_patterns(logs)
+        "error_patterns": _extract_error_patterns(logs),
+        # 패턴 그룹화 통계 정보 추가
+        "pattern_stats": {
+            "total_logs": len(logs),
+            "total_patterns": total_patterns,
+            "patterns_included_in_ai": patterns_included,
+            "original_logs_sent": min(10, len(logs))
+        }
     }
 
 
@@ -683,18 +691,33 @@ def _group_logs_by_pattern(logs: List[Dict]) -> List[Dict]:
     return pattern_list
 
 
-def _format_patterns_for_ai(patterns: List[Dict]) -> str:
+def _format_patterns_for_ai(patterns: List[Dict]) -> Tuple[str, int]:
     """Format log patterns for AI prompt.
+    
+    패턴 개수를 동적으로 조정합니다:
+    - 패턴이 20개 이하: 모두 포함
+    - 패턴이 21-50개: 상위 30개 포함
+    - 패턴이 51개 이상: 상위 40개 포함
     
     Args:
         patterns: List of log pattern groups
         
     Returns:
-        Formatted string description of patterns
+        Tuple of (formatted string description of patterns, number of patterns included)
     """
     lines = []
     
-    for i, p in enumerate(patterns[:20], 1): # 상위 20개 패턴만 상세 분석
+    # 동적 패턴 개수 조정
+    if len(patterns) <= 20:
+        max_patterns = len(patterns)
+    elif len(patterns) <= 50:
+        max_patterns = 30
+    else:
+        max_patterns = 40
+    
+    included_patterns = patterns[:max_patterns]
+    
+    for i, p in enumerate(included_patterns, 1):
         users_affected = f", Affected Users: {len(p['user_ids'])}+" if p['user_ids'] else ""
         lines.append(f"{i}. [{p['status']}] {p['service']} (Count: {p['count']}{users_affected})")
         lines.append(f"   Time: {p['first_seen']} ~ {p['last_seen']}")
@@ -705,10 +728,10 @@ def _format_patterns_for_ai(patterns: List[Dict]) -> str:
              lines.append(f"   Sample: {p['sample_messages'][0]}")
         lines.append("")
         
-    if len(patterns) > 20:
-        lines.append(f"... and {len(patterns) - 20} more patterns.")
+    if len(patterns) > max_patterns:
+        lines.append(f"... and {len(patterns) - max_patterns} more patterns.")
         
-    return "\n".join(lines)
+    return "\n".join(lines), max_patterns
 
 
 __all__ = [

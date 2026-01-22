@@ -182,6 +182,18 @@ center; } {% endblock %} {% block content %}
             AI 분석 버튼을 클릭하면 분석 결과가 표시됩니다.
           </div>
 
+          <!-- 패턴 그룹화 통계 정보 -->
+          <div
+            class="analysis-block"
+            id="pattern-stats-block"
+            style="display: none; background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 12px; margin-bottom: 16px; border-radius: 4px;"
+          >
+            <h5 style="margin-top: 0; color: #007bff; font-size: 14px; font-weight: bold;">
+              📊 로그 분석 통계
+            </h5>
+            <div id="pattern-stats" style="font-size: 13px; color: #666; line-height: 1.6;"></div>
+          </div>
+
           <!-- 문제점 요약 -->
           <div
             class="analysis-block"
@@ -566,6 +578,36 @@ center; } {% endblock %} {% block content %}
     const placeholder = document.getElementById("analysis-placeholder");
     if (placeholder) {
       placeholder.style.display = "none";
+    }
+
+    // 패턴 그룹화 통계 정보 표시
+    const patternStatsBlock = document.getElementById("pattern-stats-block");
+    const patternStatsDiv = document.getElementById("pattern-stats");
+    if (data.pattern_stats) {
+      const stats = data.pattern_stats;
+      const statsHtml = `
+        <div style="margin-bottom: 8px;">
+          <strong>조회된 로그:</strong> ${stats.total_logs.toLocaleString()}개
+        </div>
+        <div style="margin-bottom: 8px;">
+          <strong>패턴 그룹화 결과:</strong> ${stats.total_patterns}개 패턴으로 그룹화됨
+        </div>
+        <div style="margin-bottom: 8px;">
+          <strong>AI 분석에 사용된 데이터:</strong>
+          <ul style="margin: 4px 0 0 20px; padding: 0;">
+            <li>패턴 그룹: 상위 ${stats.patterns_included_in_ai}개 (각 패턴당 샘플 1개)</li>
+            <li>원본 로그 샘플: ${stats.original_logs_sent}개</li>
+          </ul>
+        </div>
+        <div style="font-size: 12px; color: #999; margin-top: 8px; font-style: italic;">
+          💡 ${stats.total_logs.toLocaleString()}개의 로그가 ${stats.total_patterns}개 패턴으로 그룹화되어, 
+          AI에는 압축된 형태(${stats.patterns_included_in_ai}개 패턴 + ${stats.original_logs_sent}개 샘플)로 전송되었습니다.
+        </div>
+      `;
+      patternStatsDiv.innerHTML = statsHtml;
+      patternStatsBlock.style.display = "block";
+    } else {
+      patternStatsBlock.style.display = "none";
     }
 
     // 문제점 요약
