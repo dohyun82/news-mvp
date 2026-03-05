@@ -69,20 +69,21 @@ def format_slack_message(articles: List[Dict[str, str]]) -> str:
         for art in items:
             title = art.get("title", "")
             url = art.get("url", "")
-            summary = art.get("summary", "")
-            
-            # 요약이 있으면 요약 내용 표시, 없으면 제목만 표시
-            if summary:
-                # 요약 내용이 있으면 제목과 요약을 함께 표시
+            summary = (art.get("summary") or "").strip()
+            description = (art.get("description") or "").strip()
+            detail_text = summary or description
+
+            # 요약이 없으면 description을 대체 텍스트로 사용
+            if detail_text:
                 if url and title:
                     link = f"<{url}|{title}>"
                     lines.append(f"• {link}")
-                    lines.append(f"  {summary}")
+                    lines.append(f"  {detail_text}")
                 else:
-                    lines.append(f"• {title}")
-                    lines.append(f"  {summary}")
+                    lines.append(f"• {title or url}")
+                    lines.append(f"  {detail_text}")
             else:
-                # 요약이 없으면 제목만 링크로 표시
+                # 요약/description이 모두 없으면 제목만 링크로 표시
                 if url and title:
                     link = f"<{url}|{title}>"
                     lines.append(f"• {link}")

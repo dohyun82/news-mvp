@@ -243,21 +243,16 @@ content %}
       (a) => !a.summary || a.summary.trim() === ""
     );
 
-    // 모든 뉴스가 요약 완료되었는지 확인
-    const allSummarized =
-      selectedNews.length > 0 &&
-      selectedNews.every((a) => a.summary && a.summary.trim() !== "");
-
     // 뉴스 요약 버튼: 요약이 안 된 뉴스가 있는 경우에만 활성화
     const summarizeBtn = document.getElementById("summarize-all-btn");
     if (summarizeBtn) {
       summarizeBtn.disabled = !hasUnsummarized || selectedNews.length === 0;
     }
 
-    // 슬랙 발송 버튼: 모든 뉴스가 요약 완료된 경우에만 활성화
+    // 슬랙 발송 버튼: 선택된 뉴스가 있을 때 활성화 (요약 여부 무관)
     const sendSlackBtn = document.getElementById("send-slack-btn");
     if (sendSlackBtn) {
-      sendSlackBtn.disabled = !allSummarized || selectedNews.length === 0;
+      sendSlackBtn.disabled = selectedNews.length === 0;
     }
   }
 
