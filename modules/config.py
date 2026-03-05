@@ -44,6 +44,7 @@ class OpenAIConfig:
     """Configuration values for the summarization provider (e.g., OpenAI)."""
 
     api_key: str = os.getenv("OPENAI_API_KEY", "")
+    model: str = os.getenv("OPENAI_MODEL", "gpt-5.2")
 
 
 @dataclass(frozen=True)
@@ -92,4 +93,3 @@ __all__ = [
     "RealDataConfig",
     "get_default_keywords_by_category",
 ]
-

@@ -68,6 +68,32 @@ class TestOpenAIPromptInputSelection(unittest.TestCase):
         self.assertIn("메타 설명 B", prompt)
         self.assertNotIn("[본문]", prompt)
 
+    @patch("shared.ai.openai_client.OpenAIConfig")
+    @patch("shared.ai.openai_client.OpenAI", _DummyOpenAI)
+    def test_uses_model_from_config_when_model_arg_missing(self, mock_cfg):
+        mock_cfg.return_value = SimpleNamespace(api_key="test-key", model="gpt-5.2")
+        _DummyOpenAI.holder.clear()
+
+        result = get_summary_from_openai("https://example.com/c", title="기사 제목 C")
+
+        self.assertEqual(result, "요약 결과")
+        self.assertEqual(_DummyOpenAI.holder["kwargs"]["model"], "gpt-5.2")
+
+    @patch("shared.ai.openai_client.OpenAIConfig")
+    @patch("shared.ai.openai_client.OpenAI", _DummyOpenAI)
+    def test_model_arg_overrides_config_model(self, mock_cfg):
+        mock_cfg.return_value = SimpleNamespace(api_key="test-key", model="gpt-5.2")
+        _DummyOpenAI.holder.clear()
+
+        result = get_summary_from_openai(
+            "https://example.com/d",
+            title="기사 제목 D",
+            model="gpt-5.2-mini",
+        )
+
+        self.assertEqual(result, "요약 결과")
+        self.assertEqual(_DummyOpenAI.holder["kwargs"]["model"], "gpt-5.2-mini")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,7 +23,13 @@ except ImportError:
 from .config import OpenAIConfig
 
 
-def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_seconds: int = 15) -> str:
+def get_summary_from_openai(
+    url: str,
+    *,
+    title: Optional[str] = None,
+    timeout_seconds: int = 15,
+    model: Optional[str] = None,
+) -> str:
     """Return a short summary for the given URL.
 
     Behavior:
@@ -35,6 +41,7 @@ def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_se
         url: The URL of the news article to summarize.
         title: Optional article title to improve summary quality.
         timeout_seconds: HTTP request timeout in seconds (default: 15).
+        model: OpenAI model to use (default: OPENAI_MODEL or "gpt-5.2").
 
     Returns:
         A summary string, or an error message if the API call fails.
@@ -66,9 +73,12 @@ def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_se
     
     for attempt in range(1, max_attempts + 1):
         try:
-            # OpenAI API 호출 (gpt-5.1 모델 사용)
+            # 모델 선택 우선순위: 함수 인자 > 환경변수(OPENAI_MODEL) > 하드코딩 기본값
+            model_name = model or getattr(cfg, "model", "") or "gpt-5.2"
+
+            # OpenAI API 호출
             response = client.chat.completions.create(
-                model="gpt-5.1",
+                model=model_name,
                 messages=[
                     {
                         "role": "user",
@@ -131,4 +141,3 @@ def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_se
     
     # 이 코드는 실행되지 않아야 하지만 안전을 위해 추가
     return f"{url} 요약 실패 (재시도 한계 도달)"
-
