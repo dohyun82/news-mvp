@@ -607,6 +607,12 @@ content %}
       console.log("API 응답 상태:", res.status);
       const data = await res.json();
       console.log("API 응답 데이터:", data);
+      if (data.summary_error) {
+        console.warn("AI 요약 실패, fallback 적용:", data.summary_error);
+        if (!isInternalCall) {
+          alert("AI 요약 실패로 설명(description) 기반 텍스트를 사용했습니다. 필요 시 수동으로 수정해주세요.");
+        }
+      }
       const el = document.getElementById("s-" + btoa(url));
       if (el) {
         el.textContent = data.summary || "";

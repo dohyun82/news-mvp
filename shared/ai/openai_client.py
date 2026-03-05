@@ -12,7 +12,6 @@ to generate summaries using the official openai SDK.
 
 from __future__ import annotations
 
-import time
 from typing import Optional
 
 try:
@@ -23,7 +22,46 @@ except ImportError:
 from core.config import OpenAIConfig
 
 
-def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_seconds: int = 15, model: Optional[str] = None) -> str:
+def _build_news_prompt(
+    *,
+    url: str,
+    title: Optional[str],
+    description: Optional[str],
+    article_text: Optional[str],
+) -> str:
+    title_text = (title or "").strip()
+    description_text = (description or "").strip()
+    article_body = (article_text or "").strip()
+
+    sections = []
+    sections.append("다음 입력 정보에 근거해서만 뉴스 요약을 작성해주세요.")
+    sections.append("[규칙]")
+    sections.append("1) 입력에 없는 사실을 추측하거나 단정하지 말 것.")
+    sections.append("2) 숫자/날짜/주체가 불명확하면 '불명확'이라고 명시할 것.")
+    sections.append("3) 3~5줄, 간결하고 사실 중심 문장으로 작성할 것.")
+    sections.append("4) 광고성 표현이나 과장 표현은 제거할 것.")
+    sections.append("")
+    sections.append(f"[URL]\n{url}")
+    if title_text:
+        sections.append(f"[제목]\n{title_text}")
+    if description_text:
+        sections.append(f"[요약문(description)]\n{description_text}")
+    if article_body:
+        sections.append(f"[본문]\n{article_body}")
+    sections.append("")
+    sections.append("출력은 한국어 평문 요약만 작성해주세요.")
+    return "\n".join(sections)
+
+
+def get_summary_from_openai(
+    url: str,
+    *,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    article_text: Optional[str] = None,
+    timeout_seconds: int = 15,
+    model: Optional[str] = None,
+) -> str:
     """Return a short summary for the given URL.
 
     Behavior:
@@ -35,6 +73,8 @@ def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_se
     Args:
         url: The URL of the news article to summarize.
         title: Optional article title to improve summary quality.
+        description: Optional description text from crawler metadata.
+        article_text: Optional full article body extracted from URL.
         timeout_seconds: HTTP request timeout in seconds (default: 15).
         model: OpenAI model to use (default: "gpt-5.1").
 
@@ -64,9 +104,13 @@ def get_summary_from_openai(url: str, *, title: Optional[str] = None, timeout_se
         # 로그 분석: title이 이미 완성된 프롬프트
         prompt = title
     else:
-        # 뉴스 요약: title이 있으면 제목 사용, 없으면 URL 사용
-        prompt_text = title if title else url
-        prompt = f"다음 뉴스 기사를 3~5줄로 간단히 요약해주세요:\n\n{prompt_text}"
+        # 뉴스 요약: 본문(article_text) 우선, 없으면 title+description 기반
+        prompt = _build_news_prompt(
+            url=url,
+            title=title,
+            description=description,
+            article_text=article_text,
+        )
     
     # API 호출 (1번만 시도, 재시도 없음)
     try:

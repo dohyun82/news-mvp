@@ -15,6 +15,13 @@ from .curation import curate
 from . import keyword_store
 
 
+def _trim_for_log(text: str, max_len: int = 120) -> str:
+    cleaned = (text or "").replace("\n", " ").replace("\r", " ").strip()
+    if len(cleaned) > max_len:
+        return cleaned[:max_len] + "..."
+    return cleaned
+
+
 def _fetch_naver_news_api(query: str, *, display: int, start: int, sort: str, timeout: int,
                           client_id: str, client_secret: str) -> List[Dict[str, str]]:
     base = "https://openapi.naver.com/v1/search/news.json"
@@ -161,6 +168,17 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
                         remaining -= len(items)
                         success = True
                         logger.info("fetched %d items for kw='%s' (remaining=%d)", len(items), kw, remaining)
+                        if cfg.log_each_item:
+                            for idx, item in enumerate(items, start=1):
+                                logger.info(
+                                    "fetched item kw='%s' idx=%d/%d title='%s' url='%s' pub_date='%s'",
+                                    kw,
+                                    idx,
+                                    len(items),
+                                    _trim_for_log(item.get("title", "")),
+                                    item.get("url", ""),
+                                    item.get("pub_date", ""),
+                                )
                         # API에서 반환된 개수가 batch보다 적으면 더 이상 수집할 수 없음
                         if len(items) < batch:
                             remaining = 0
@@ -225,5 +243,4 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
     
     result = curate(raw_articles, keywords_by_category)
     return result
-
 

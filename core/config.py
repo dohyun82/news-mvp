@@ -47,6 +47,15 @@ class OpenAIConfig:
 
 
 @dataclass(frozen=True)
+class ArticleFetchConfig:
+    """Configuration values for article content fetching/extraction."""
+
+    enabled: bool = os.getenv("ARTICLE_FETCH_ENABLED", "true").lower() == "true"
+    timeout_seconds: int = int(os.getenv("ARTICLE_FETCH_TIMEOUT_SECONDS", "5"))
+    text_max_chars: int = int(os.getenv("ARTICLE_TEXT_MAX_CHARS", "4000"))
+
+
+@dataclass(frozen=True)
 class DatadogConfig:
     """Configuration values for Datadog API integration.
     
@@ -109,6 +118,7 @@ def get_default_keywords_by_category() -> Dict[str, List[str]]:
 __all__ = [
     "SlackConfig",
     "OpenAIConfig",
+    "ArticleFetchConfig",
     "DatadogConfig",
     "RealDataConfig",
     "get_default_keywords_by_category",

@@ -16,6 +16,7 @@ from .models import store
 from .services import collect_news, get_keyword_settings, save_keyword_settings
 from shared.ai.openai_client import get_summary_from_openai
 from shared.integrations.slack import send_message_to_slack
+from shared.news.article_content_extractor import extract_article_content
 
 
 # News collection API
@@ -41,11 +42,41 @@ def summarize_news_route():
     # store에서 기사 정보 가져오기 (제목을 함께 전달하기 위해)
     article = store.get_article_by_url(url)
     title = article.title if article else None
+    description = (article.description or "").strip() if article else ""
+
+    extract_result = extract_article_content(url)
+    article_text = extract_result.text if extract_result.status == "ok" else ""
+    input_source = "article_text" if article_text else ("description" if description else "title")
     
-    # OpenAI API 호출 (제목이 있으면 함께 전달)
-    summary = get_summary_from_openai(url, title=title)
+    # OpenAI API 호출 (본문 우선, 실패 시 description으로 fallback)
+    summary = get_summary_from_openai(
+        url,
+        title=title,
+        description=description or None,
+        article_text=article_text or None,
+    )
+
+    summary_error = ""
+    if "요약 실패 (" in summary:
+        summary_error = summary
+        if description:
+            summary = description
+            input_source = "description"
+        else:
+            summary = ""
+            input_source = "none" if not title else "title"
+
     store.set_summary(url, summary)
-    return jsonify({"url": url, "summary": summary})
+    return jsonify(
+        {
+            "url": url,
+            "summary": summary,
+            "input_source": input_source,
+            "extract_status": extract_result.status,
+            "extract_source": extract_result.source,
+            "summary_error": summary_error,
+        }
+    )
 
 
 @news_bp.route('/api/send-slack', methods=['POST'])
