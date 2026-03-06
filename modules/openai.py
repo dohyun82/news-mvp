@@ -41,7 +41,7 @@ def get_summary_from_openai(
         url: The URL of the news article to summarize.
         title: Optional article title to improve summary quality.
         timeout_seconds: HTTP request timeout in seconds (default: 15).
-        model: OpenAI model to use (default: OPENAI_MODEL or "gpt-5.2").
+        model: OpenAI model to use (default: OPENAI_MODEL or "gpt-5.4").
 
     Returns:
         A summary string, or an error message if the API call fails.
@@ -74,7 +74,7 @@ def get_summary_from_openai(
     for attempt in range(1, max_attempts + 1):
         try:
             # 모델 선택 우선순위: 함수 인자 > 환경변수(OPENAI_MODEL) > 하드코딩 기본값
-            model_name = model or getattr(cfg, "model", "") or "gpt-5.2"
+            model_name = model or getattr(cfg, "model", "") or "gpt-5.4"
 
             # OpenAI API 호출
             response = client.chat.completions.create(

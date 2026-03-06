@@ -76,7 +76,7 @@ def get_summary_from_openai(
         description: Optional description text from crawler metadata.
         article_text: Optional full article body extracted from URL.
         timeout_seconds: HTTP request timeout in seconds (default: 15).
-        model: OpenAI model to use (default: OPENAI_MODEL or "gpt-5.2").
+        model: OpenAI model to use (default: OPENAI_MODEL or "gpt-5.4").
 
     Returns:
         A summary string, or an error message if the API call fails.
@@ -115,7 +115,7 @@ def get_summary_from_openai(
     # API 호출 (1번만 시도, 재시도 없음)
     try:
         # 모델 선택 우선순위: 함수 인자 > 환경변수(OPENAI_MODEL) > 하드코딩 기본값
-        model_name = model or getattr(cfg, "model", "") or "gpt-5.2"
+        model_name = model or getattr(cfg, "model", "") or "gpt-5.4"
         
         # API 호출 전 로깅: 전송되는 데이터 기록
         print("=" * 80)
