@@ -1,7 +1,7 @@
 import unittest
 
 from modules.curation import normalize_title, deduplicate, map_category, curate
-from modules.config import get_default_keywords_by_category
+from core.config import get_default_keywords_by_category
 
 
 class TestCuration(unittest.TestCase):

@@ -1,6 +1,6 @@
 import unittest
 
-from modules.slack import format_slack_message
+from shared.integrations.slack import format_slack_message
 
 
 class TestSlackFormatter(unittest.TestCase):
@@ -14,10 +14,10 @@ class TestSlackFormatter(unittest.TestCase):
             {"title": "B", "url": "http://b", "category": "업계", "summary": "S2"},
         ]
         msg = format_slack_message(arts)
-        self.assertIn("*[그룹사]*", msg)
-        self.assertIn("*[업계]*", msg)
+        self.assertIn("*그룹사 뉴스*", msg)
+        self.assertIn("*업계 뉴스*", msg)
         self.assertIn("<http://a|A>", msg)
-        self.assertIn("— S1", msg)
+        self.assertIn("S1", msg)
 
 
 if __name__ == "__main__":

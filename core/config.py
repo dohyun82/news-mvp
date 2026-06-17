@@ -84,6 +84,7 @@ class RealDataConfig:
     timeout_ms: int = int(os.getenv("NAVER_TIMEOUT_MS", "5000"))
     sort: str = os.getenv("NAVER_SORT", "sim")
     delay_ms: int = int(os.getenv("NAVER_DELAY_MS", "300"))
+    log_each_item: bool = os.getenv("NAVER_LOG_EACH_ITEM", "false").lower() == "true"
 
 
 def get_default_keywords_by_category() -> Dict[str, List[str]]:

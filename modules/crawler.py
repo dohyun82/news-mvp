@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
-from .config import RealDataConfig
+from core.config import RealDataConfig
 from .curation import curate
 from . import keyword_store
 

@@ -7,15 +7,8 @@ application modules (news clipping, log analysis, etc.).
 
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
-# 점진적 마이그레이션: 기존 modules를 import하여 하위 호환성 유지
-from modules import crawler, openai, slack
-from modules.store import store
-from modules.common import configure_logging, register_http_logging, register_error_handlers
-from modules.config import RealDataConfig
-from modules import keyword_store
-
-# 새로운 구조: core, shared, apps 모듈 import
-from core.common import configure_logging as configure_logging_new, register_http_logging as register_http_logging_new, register_error_handlers as register_error_handlers_new
+# core, shared, apps 모듈 import
+from core.common import configure_logging, register_http_logging, register_error_handlers
 from apps.news import news_bp
 from apps.logs import logs_bp
 
@@ -25,10 +18,10 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # 정적 파일 캐시 비활성화
 
-# Common logging / error handling (새로운 구조 사용)
-configure_logging_new()
-register_http_logging_new(app)
-register_error_handlers_new(app)
+# Common logging / error handling
+configure_logging()
+register_http_logging(app)
+register_error_handlers(app)
 
 # Blueprint 등록
 app.register_blueprint(news_bp)
