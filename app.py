@@ -10,7 +10,6 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for
 # core, shared, apps 모듈 import
 from core.common import configure_logging, register_http_logging, register_error_handlers
 from apps.news import news_bp
-from apps.logs import logs_bp
 
 app = Flask(__name__)
 
@@ -25,7 +24,6 @@ register_error_handlers(app)
 
 # Blueprint 등록
 app.register_blueprint(news_bp)
-app.register_blueprint(logs_bp)
 
 # 하위 호환성: 기존 라우트를 새로운 Blueprint 함수로 위임
 # 뉴스 관련 API 라우트 (POST는 리다이렉트 대신 직접 처리)
@@ -95,11 +93,6 @@ def index():
 def review_page_legacy():
     """기존 뉴스 클리핑 페이지 (하위 호환성)."""
     return redirect(url_for('news.review_page'), code=301)
-
-@app.route('/logs')
-def logs_page_legacy():
-    """기존 로그 분석 페이지 (하위 호환성)."""
-    return redirect(url_for('logs.index'), code=301)
 
 @app.route('/settings')
 def settings_page_legacy():

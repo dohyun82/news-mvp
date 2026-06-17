@@ -57,18 +57,6 @@ class ArticleFetchConfig:
 
 
 @dataclass(frozen=True)
-class DatadogConfig:
-    """Configuration values for Datadog API integration.
-    
-    Used for log analysis functionality to query mobile app server/client logs.
-    """
-
-    api_key: str = os.getenv("DATADOG_API_KEY", "")
-    app_key: str = os.getenv("DATADOG_APP_KEY", "")
-    site: str = os.getenv("DATADOG_SITE", "datadoghq.com")  # 기본값: US1
-
-
-@dataclass(frozen=True)
 class RealDataConfig:
     """Configuration for real data fetching via Naver Search API.
     
@@ -121,7 +109,6 @@ __all__ = [
     "SlackConfig",
     "OpenAIConfig",
     "ArticleFetchConfig",
-    "DatadogConfig",
     "RealDataConfig",
     "get_default_keywords_by_category",
 ]
