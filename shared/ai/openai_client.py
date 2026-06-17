@@ -97,20 +97,13 @@ def get_summary_from_openai(
     # timeout 설정: 기본값 15초를 사용하되, 더 긴 응답 시간이 필요한 경우를 대비
     client = OpenAI(api_key=cfg.api_key, timeout=timeout_seconds)
     
-    # 프롬프트 준비
-    # url이 "log_analysis"인 경우: title을 완성된 프롬프트로 간주 (로그 분석)
-    # 그 외의 경우: 뉴스 요약용 프롬프트 추가
-    if url == "log_analysis" and title:
-        # 로그 분석: title이 이미 완성된 프롬프트
-        prompt = title
-    else:
-        # 뉴스 요약: 본문(article_text) 우선, 없으면 title+description 기반
-        prompt = _build_news_prompt(
-            url=url,
-            title=title,
-            description=description,
-            article_text=article_text,
-        )
+    # 뉴스 요약 프롬프트 생성 (본문 우선, 없으면 title+description 기반)
+    prompt = _build_news_prompt(
+        url=url,
+        title=title,
+        description=description,
+        article_text=article_text,
+    )
     
     # API 호출 (1번만 시도, 재시도 없음)
     try:

@@ -20,7 +20,7 @@
 - `app.py`: Flask 엔트리 포인트, Blueprint 등록.
 - `apps/`: 기능 모듈(`news/`, `logs/`) + 각 모듈의 `routes.py`, `services.py`, 템플릿.
 - `core/`: 공통 설정, 요청/응답 헬퍼.
-- `shared/`: 재사용 통합(예: AI 클라이언트, Slack/Datadog, 스토리지).
+- `shared/`: 재사용 통합(예: AI 클라이언트, Slack, 스토리지).
 - `modules/`: 마이그레이션 중인 레거시(크롤러, 키워드 스토어 등).
 - `templates/`, `static/`: 공유 Jinja2 레이아웃/에셋.
 - `data/keywords.json`: 키워드/카테고리 매핑.
@@ -49,7 +49,7 @@
 
 ## 보안 & 설정
 - 로컬에 `.env` 사용, 실제 자격 증명은 커밋 금지.
-- 필수 키: `OPENAI_API_KEY`, `SLACK_BOT_TOKEN`, `NAVER_API_CLIENT_ID` (Datadog 토큰은 필요 시).
+- 필수 키: `OPENAI_API_KEY`, `SLACK_BOT_TOKEN`, `NAVER_API_CLIENT_ID`.
 - 환경 변수 추가/변경 시 `.env.sample`도 함께 업데이트한다.
 
 ## 커밋 & PR

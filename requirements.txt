@@ -1,6 +1,5 @@
 Flask
 python-dotenv
 openai
-datadog-api-client
 trafilatura
 

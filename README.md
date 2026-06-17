@@ -1,6 +1,6 @@
 # vendys-ai-automation-platform
 
-사내 AI 자동화 기능을 제공하는 플랫폼입니다. 뉴스 클리핑, 로그 분석 등 다양한 자동화 기능을 모듈화된 구조로 제공합니다.
+사내 AI 자동화 기능을 제공하는 플랫폼입니다. 뉴스 클리핑 기능을 모듈화된 구조로 제공합니다.
 
 ## 목차
 
@@ -33,10 +33,6 @@
       services.py
       models.py
       templates/
-    logs/                         # 로그 분석 앱
-      routes.py
-      services.py
-      templates/
   core/                           # 공통 기능
     config.py
     common.py
@@ -47,7 +43,6 @@
       openai_client.py
     integrations/                 # 외부 연동
       slack.py
-      datadog.py
     storage/                      # 저장소 추상화
       base_store.py
   modules/                        # 기존 모듈 (점진적 마이그레이션 중)
@@ -152,9 +147,6 @@ flask --app app run --host=0.0.0.0 --port 5001
 | `NAVER_TIMEOUT_MS`        | 네이버 API 호출 타임아웃(ms)                         |
 | `NAVER_SORT`              | 정렬(sim                                             | date) |
 | `NAVER_DELAY_MS`          | 키워드 호출 간 대기(ms)                              |
-| `DATADOG_API_KEY`         | Datadog API 키 (로그 분석 기능용)                    |
-| `DATADOG_APP_KEY`         | Datadog App 키 (로그 분석 기능용)                    |
-| `DATADOG_SITE`            | Datadog 사이트 (기본값: datadoghq.com)               |
 
 초기 실행 단계에서는 실제 키가 없어도 서버 기동과 라우트 연결 확인에는 문제가 없습니다.
 
@@ -174,22 +166,15 @@ flask --app app run --host=0.0.0.0 --port 5001
 - `GET /news/api/settings/get` 설정 조회
 - `POST /news/api/settings/save` 설정 저장
 
-### 로그 분석 (`/logs/*`)
-
-- `GET /logs` 로그 분석 대시보드
-- `POST /logs/api/query` Datadog 로그 쿼리
-- `POST /logs/api/analyze` AI 기반 로그 분석
-
 ### 하위 호환성
 
-기존 라우트(`/api/*`, `/review`, `/settings`, `/logs`)는 새로운 Blueprint 경로로 리다이렉트됩니다.
+기존 라우트(`/api/*`, `/review`, `/settings`)는 새로운 Blueprint 경로로 리다이렉트됩니다.
 
 예시 요청:
 
 ```bash
 curl -X POST http://127.0.0.1:5001/news/api/collect
 curl -X POST http://127.0.0.1:5001/news/api/summarize
-curl -X POST http://127.0.0.1:5001/logs/api/query -H "Content-Type: application/json" -d '{"query": "service:sikdae-android status:error"}'
 ```
 
 ## 6. 개발 메모
