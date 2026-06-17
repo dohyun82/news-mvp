@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 class TestIntegrationRealData(unittest.TestCase):
     @patch("modules.crawler._fetch_naver_news_api")
     @patch("modules.crawler.keyword_store")
-    @patch("modules.config.RealDataConfig")
+    @patch("modules.crawler.RealDataConfig")
     def test_realdata_flow_curate_and_category(self, MockCfg, mock_keyword_store, mock_fetch):
         # Configure RealDataConfig to enable realdata path
         cfg = MockCfg.return_value
@@ -19,7 +19,7 @@ class TestIntegrationRealData(unittest.TestCase):
         # Configure keyword_store mock
         mock_keyword_store.get_query_keywords.return_value = "현대백화점"
         mock_keyword_store.get_max_articles.return_value = 5
-        mock_keyword_store.get_max_age_hours.return_value = 24
+        mock_keyword_store.get_max_age_hours.return_value = 0  # 나이 필터 비활성 (이 테스트는 광고/중복 제거·분류만 검증)
         mock_keyword_store.get_category_keywords.return_value = {
             "그룹사": ["현대백화점"],
             "업계": [],
