@@ -12,12 +12,15 @@ be added later without changing the public function signature.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
 from typing import Dict, List
 
 from core.config import SlackConfig
+
+logger = logging.getLogger("integrations.slack")
 
 
 def _group_by_category(articles: List[Dict[str, str]]) -> Dict[str, List[Dict[str, str]]]:
@@ -125,10 +128,9 @@ def send_message_to_slack(articles: List[Dict[str, str]]):
     
     # 재시도 로직: 일시적인 서버 오류에 대비하여 최대 3번 시도
     max_attempts = 3
-    
+
     for attempt in range(1, max_attempts + 1):
         try:
-            # HTTP 요청 생성
             req = urllib.request.Request(
                 api_endpoint,
                 data=request_data,
@@ -136,94 +138,79 @@ def send_message_to_slack(articles: List[Dict[str, str]]):
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {cfg.bot_token}",
                 },
-                method="POST"
+                method="POST",
             )
-            
-            # API 호출
+
             with urllib.request.urlopen(req, timeout=10) as resp:
-                # 응답 읽기 및 JSON 파싱
                 response_data = json.loads(resp.read().decode("utf-8"))
-                
-                # Slack API 응답 확인
-                # 성공 시: {"ok": true, "ts": "...", "channel": "..."}
-                # 실패 시: {"ok": false, "error": "error_code"}
+
+                # 성공: {"ok": true, ...} / 실패: {"ok": false, "error": ...}
                 if response_data.get("ok"):
-                    if attempt > 1:
-                        print(f"slack.py: Message sent successfully (attempt {attempt})")
-                    else:
-                        print("slack.py: Message sent successfully")
+                    logger.info("슬랙 메시지 전송 완료 (attempt %d)", attempt)
                     return True, "슬랙 메시지 전송 완료"
-                else:
-                    error_code = response_data.get("error", "unknown_error")
-                    error_msg = f"Slack API error: {error_code}"
-                    
-                    # 재시도 가능한 에러인지 확인
-                    # rate_limited: 429 에러, server_error: 5xx 에러
-                    is_retryable = (
-                        error_code == "rate_limited" or
-                        "server_error" in error_code or
-                        "internal_error" in error_code
+
+                error_code = response_data.get("error", "unknown_error")
+                # rate_limited(429)/server_error(5xx)는 재시도
+                is_retryable = (
+                    error_code == "rate_limited"
+                    or "server_error" in error_code
+                    or "internal_error" in error_code
+                )
+                if is_retryable and attempt < max_attempts:
+                    retry_after = resp.headers.get("Retry-After")
+                    wait_time = int(retry_after) if retry_after else attempt
+                    logger.warning(
+                        "슬랙 API 오류(attempt %d/%d, %ds 후 재시도): %s",
+                        attempt, max_attempts, wait_time, error_code,
                     )
-                    
-                    if is_retryable and attempt < max_attempts:
-                        # rate_limited인 경우 응답 헤더에서 Retry-After 확인
-                        retry_after = resp.headers.get("Retry-After")
-                        wait_time = int(retry_after) if retry_after else attempt
-                        print(f"slack.py: API call failed (attempt {attempt}/{max_attempts}): {error_msg}")
-                        print(f"slack.py: Retrying in {wait_time} seconds...")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        # 재시도 불가능한 에러
-                        print(f"slack.py: API call failed: {error_msg}")
-                        return False, f"슬랙 메시지 전송 실패: {error_code}"
-                        
+                    time.sleep(wait_time)
+                    continue
+                logger.error("슬랙 API 오류: %s", error_code)
+                return False, f"슬랙 메시지 전송 실패: {error_code}"
+
         except urllib.error.HTTPError as e:
-            # HTTP 에러 (429, 5xx 등)
             error_body = ""
             try:
                 error_body = e.read().decode("utf-8")
-            except:
+            except Exception:
                 pass
-            
-            # 429 (Too Many Requests)나 5xx 에러는 재시도
+
             is_retryable = e.code == 429 or e.code >= 500
-            
             if is_retryable and attempt < max_attempts:
-                # 429인 경우 Retry-After 헤더 확인
                 retry_after = e.headers.get("Retry-After")
                 wait_time = int(retry_after) if retry_after else attempt
-                print(f"slack.py: HTTP error {e.code} (attempt {attempt}/{max_attempts})")
-                print(f"slack.py: Retrying in {wait_time} seconds...")
+                logger.warning(
+                    "슬랙 HTTP 오류 %d (attempt %d/%d, %ds 후 재시도)",
+                    e.code, attempt, max_attempts, wait_time,
+                )
                 time.sleep(wait_time)
                 continue
-            else:
-                print(f"slack.py: HTTP error {e.code}: {error_body[:200]}")
-                return False, f"슬랙 메시지 전송 실패 (HTTP {e.code})"
-                
+            logger.error("슬랙 HTTP 오류 %d: %s", e.code, error_body[:200])
+            return False, f"슬랙 메시지 전송 실패 (HTTP {e.code})"
+
         except urllib.error.URLError as e:
-            # 네트워크 오류
             if attempt < max_attempts:
                 wait_time = attempt
-                print(f"slack.py: URL error (attempt {attempt}/{max_attempts}): {e}")
-                print(f"slack.py: Retrying in {wait_time} seconds...")
+                logger.warning(
+                    "슬랙 네트워크 오류(attempt %d/%d, %ds 후 재시도): %s",
+                    attempt, max_attempts, wait_time, e,
+                )
                 time.sleep(wait_time)
                 continue
-            else:
-                print(f"slack.py: URL error: {e}")
-                return False, f"슬랙 메시지 전송 실패 (네트워크 오류)"
-                
+            logger.error("슬랙 네트워크 오류: %s", e)
+            return False, "슬랙 메시지 전송 실패 (네트워크 오류)"
+
         except Exception as exc:
-            # 기타 예상치 못한 오류
             if attempt < max_attempts:
                 wait_time = attempt
-                print(f"slack.py: Unexpected error (attempt {attempt}/{max_attempts}): {exc}")
-                print(f"slack.py: Retrying in {wait_time} seconds...")
+                logger.warning(
+                    "슬랙 전송 예외(attempt %d/%d, %ds 후 재시도): %s",
+                    attempt, max_attempts, wait_time, exc,
+                )
                 time.sleep(wait_time)
                 continue
-            else:
-                print(f"slack.py: Unexpected error: {exc}")
-                return False, f"슬랙 메시지 전송 실패 (예상치 못한 오류)"
-    
+            logger.error("슬랙 전송 예외: %s", exc)
+            return False, "슬랙 메시지 전송 실패 (예상치 못한 오류)"
+
     # 모든 재시도 실패 시
     return False, "슬랙 메시지 전송 실패 (재시도 한계 도달)"

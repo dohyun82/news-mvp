@@ -1,4 +1,7 @@
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app import app
@@ -10,6 +13,10 @@ class TestSummarizeRouteWithContentFallback(unittest.TestCase):
     def setUp(self):
         app.testing = True
         self.client = app.test_client()
+        # 영속성 파일을 임시 경로로 격리 (실제 data/articles.json 오염 방지)
+        self._tmp_store = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        self._tmp_store.close()
+        store._persist_path = Path(self._tmp_store.name)
         store.set_articles(
             [
                 {
@@ -23,6 +30,7 @@ class TestSummarizeRouteWithContentFallback(unittest.TestCase):
 
     def tearDown(self):
         store.set_articles([])
+        os.unlink(self._tmp_store.name)
 
     @patch("apps.news.routes.get_summary_from_openai")
     @patch("apps.news.routes.extract_article_content")
