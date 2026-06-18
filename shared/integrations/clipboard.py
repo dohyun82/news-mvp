@@ -85,7 +85,7 @@ def format_clipboard_html(articles: List[Dict[str, str]]) -> str:
                 item += f"<ul><li>{detail}</li></ul>"
             parts.append(f"<li>{item}</li>")
         parts.append("</ul>")
-    parts.append(f"<p>{html_lib.escape(CLIPBOARD_FOOTER)}</p>")
+    parts.append(f'<p style="color: #888888;">{html_lib.escape(CLIPBOARD_FOOTER)}</p>')
     return "\n".join(parts)
 
 
