@@ -35,7 +35,7 @@
 - **예시**: `modules/` 폴더는 패키지입니다. `modules/__init__.py` 파일이 있어서 가능합니다.
 - **사용법**:
   ```python
-  from modules import crawler, openai, slack  # 패키지에서 여러 모듈 가져오기
+  from modules import crawler, keyword_store  # 패키지에서 여러 모듈 가져오기
   ```
 
 #### 함수 (Function)
@@ -160,12 +160,18 @@ app = Flask(__name__)  # Flask 애플리케이션 객체 생성
 
 ```python
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, port=5001)
+    import os
+    debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(
+        host=os.getenv("FLASK_HOST", "127.0.0.1"),
+        port=int(os.getenv("FLASK_PORT", "5001")),
+        debug=debug,
+    )
 ```
 
-- `host='0.0.0.0'`: 모든 네트워크 인터페이스에서 접속 허용
-- `debug=True`: 개발 모드 (코드 변경 시 자동 재시작, 에러 상세 표시)
-- `port=5001`: 5001 포트에서 실행
+- 실행 설정(debug/host/port)은 환경변수로 제어하며 **기본값은 안전**합니다 (`debug=False`, `host=127.0.0.1`)
+- 개발 중 디버거가 필요하면 `FLASK_DEBUG=true`로 실행
+- Werkzeug 디버거를 외부에 노출하면 원격 코드 실행 위험이 있어 기본 비활성
 
 ---
 
@@ -173,27 +179,30 @@ if __name__ == '__main__':
 
 ```
 news-mvp/
-├── app.py                 # Flask 앱의 진입점 (메인 파일)
-├── modules/               # 비즈니스 로직 모듈들
-│   ├── __init__.py       # 패키지 초기화 파일
-│   ├── common.py         # 공통 유틸리티 (로깅, 에러 처리)
-│   ├── config.py         # 설정 관리 (환경 변수, 상수)
-│   ├── crawler.py        # 뉴스 수집 로직
-│   ├── curation.py       # 뉴스 큐레이션 로직
-│   ├── openai.py         # OpenAI API 연동 (요약 생성)
-│   ├── slack.py          # Slack API 연동 (메시지 발송)
-│   └── store.py          # 인메모리 데이터 저장소
-├── templates/            # HTML 템플릿 파일들
-│   ├── index.html        # 메인 페이지
-│   └── review.html       # 검토 페이지
-├── static/               # 정적 파일 (CSS, JS, 이미지)
-│   └── css/
-├── tests/                # 테스트 파일들
-│   ├── test_curation.py
-│   ├── test_integration_realdata.py
-│   └── test_slack.py
-├── requirements.txt      # Python 패키지 의존성 목록
-└── README.md             # 프로젝트 설명서
+├── app.py                 # Flask 앱 진입점 (Blueprint 등록 + 레거시 라우트 위임)
+├── apps/                  # 기능별 앱 (Blueprint)
+│   └── news/             # 뉴스 클리핑
+│       ├── routes.py     # 라우트 (API/페이지)
+│       ├── services.py   # 수집·키워드 비즈니스 로직
+│       ├── models.py     # Article + 파일 영속 InMemoryStore
+│       └── templates/
+├── core/                  # 공통 기반
+│   ├── config.py         # 설정(Slack/OpenAI/ArticleFetch/RealData)
+│   └── common.py         # 로깅·에러 핸들러
+├── shared/                # 재사용 모듈
+│   ├── ai/openai_client.py             # OpenAI 요약(재시도 포함)
+│   ├── integrations/slack.py           # Slack 발송
+│   └── news/article_content_extractor.py  # 기사 본문 추출
+├── modules/               # 레거시 (점진 정리 중)
+│   ├── crawler.py        # 뉴스 수집
+│   ├── curation.py       # 큐레이션(중복/광고 필터)
+│   └── keyword_store.py  # 키워드 JSON 저장소
+├── templates/            # 공통 템플릿 (base/index/review/settings)
+├── static/css/
+├── tests/                # 단위 테스트
+├── data/keywords.json    # 키워드/카테고리 설정
+├── requirements.txt
+└── README.md
 ```
 
 ### 2.1 파일 역할 설명
@@ -212,13 +221,15 @@ news-mvp/
       pass
   ```
 
-#### `modules/` - 비즈니스 로직
+#### `apps/`·`core/`·`shared/`·`modules/` - 비즈니스 로직
 
-- **역할**: 실제 기능을 구현하는 코드들이 모여있습니다.
+- **역할**: 실제 기능을 계층별로 구현합니다.
 - **설계 원칙**: 각 모듈은 하나의 책임만 가집니다 (Single Responsibility Principle)
-  - `crawler.py`: 뉴스 수집만 담당
-  - `openai.py`: 요약 생성만 담당
-  - `slack.py`: Slack 발송만 담당
+  - `apps/news/`: 뉴스 클리핑 기능 (routes·services·models)
+  - `core/`: 공통 설정·로깅
+  - `shared/ai/openai_client.py`: 요약 생성
+  - `shared/integrations/slack.py`: Slack 발송
+  - `modules/crawler.py`: 뉴스 수집 (레거시)
 
 #### `templates/` - HTML 템플릿
 
@@ -383,7 +394,7 @@ def old_format_article(article: dict) -> str:
 
 ## 4. 모듈별 상세 설명
 
-### 4.1 `modules/common.py` - 공통 유틸리티
+### 4.1 `core/common.py` - 공통 유틸리티
 
 #### 목적
 
@@ -444,7 +455,7 @@ def old_format_article(article: dict) -> str:
 - **데코레이터 패턴**: 함수를 감싸서 추가 기능을 제공
 - **컨텍스트 변수 (`g`)**: 요청마다 독립적인 변수 저장소
 
-### 4.2 `modules/config.py` - 설정 관리
+### 4.2 `core/config.py` - 설정 관리
 
 #### 목적
 
@@ -485,7 +496,7 @@ def old_format_article(article: dict) -> str:
 - **환경 변수**: 운영 환경에 따라 달라지는 설정값 (API 키, 서버 주소 등)
 - **`.env` 파일**: 환경 변수를 저장하는 파일 (보안상 Git에 커밋하지 않음)
 
-### 4.3 `modules/store.py` - 데이터 저장소
+### 4.3 `apps/news/models.py` - 데이터 모델·저장소
 
 #### 목적
 
@@ -564,134 +575,59 @@ def old_format_article(article: dict) -> str:
         return len(self._articles) != before  # 삭제되었는지 여부 반환
     ```
 
-**전역 인스턴스**:
+**전역 인스턴스 & 파일 영속성**:
 
 ```python
 store = InMemoryStore()  # 애플리케이션 전체에서 공유하는 단일 인스턴스
 ```
 
 - **싱글톤 패턴**: 하나의 인스턴스만 사용하여 데이터 일관성 유지
+- **파일 영속성**: 상태 변경 시 `data/articles.json`에 저장하고 시작 시 로드(best-effort) → 서버 재시작 후에도 수집·검토 상태 보존. 경로는 `ARTICLES_STORE_PATH`로 재정의 가능
 
-### 4.4 `app.py` - Flask 애플리케이션
+### 4.4 `app.py` - Flask 진입점
 
-#### 구조 설명
+현재 라우트는 기능별 Blueprint(`apps/news/routes.py`)에 정의되어 있고, `app.py`는 **Blueprint 등록과 레거시 라우트 위임**만 담당합니다.
 
-##### 1. 모듈 임포트
-
-```python
-from flask import Flask, jsonify, render_template, request
-from modules import crawler, openai, slack
-from modules.store import store
-from modules.common import configure_logging, register_http_logging, register_error_handlers
-```
-
-- **설명**: 필요한 Flask 기능과 프로젝트 모듈들을 가져옵니다.
-
-##### 2. 앱 초기화
+##### 1. 모듈 임포트 & 초기화
 
 ```python
+from flask import Flask
+from core.common import configure_logging, register_http_logging, register_error_handlers
+from apps.news import news_bp
+
 app = Flask(__name__)
 configure_logging()
 register_http_logging(app)
 register_error_handlers(app)
+app.register_blueprint(news_bp)  # /news/* 라우트 등록
 ```
 
-- **설명**: Flask 앱을 생성하고 공통 기능을 등록합니다.
-
-##### 3. API 라우트 정의
-
-**`POST /api/collect`** - 뉴스 수집
+##### 2. 실제 라우트는 Blueprint에서 정의
 
 ```python
-@app.route('/api/collect', methods=['POST'])
-def collect_news():
-    articles = crawler.crawl_naver_news([])  # 뉴스 수집
-    store.set_articles(articles)              # 저장소에 저장
-    return jsonify({"count": len(articles)}) # 수집된 개수 반환
+# apps/news/routes.py
+from . import news_bp
+from .services import collect_news
+from .models import store
+
+@news_bp.route('/api/collect', methods=['POST'])
+def collect_news_route():
+    articles = collect_news()       # services.py의 비즈니스 로직
+    store.set_articles(articles)    # models.py의 저장소
+    return jsonify({"count": len(articles)})
 ```
 
-- **동작 흐름**:
-  1. 클라이언트가 POST 요청 전송
-  2. `crawler.crawl_naver_news()` 호출하여 뉴스 수집
-  3. `store.set_articles()`로 저장소에 저장
-  4. 수집된 개수를 JSON으로 반환
+- 주요 경로: `/news/api/collect`, `/news/api/summarize`, `/news/review`, `/news/settings` 등
+- **계층 분리**: 라우트(`routes.py`) → 비즈니스 로직(`services.py`) → 저장소(`models.py`)
 
-**`POST /api/summarize`** - 기사 요약
+##### 3. 레거시 호환
 
-```python
-@app.route('/api/summarize', methods=['POST'])
-def summarize_news():
-    data = request.get_json(silent=True) or {}  # JSON 요청 본문 파싱
-    url = data.get("url")                       # "url" 키 추출
-    if not url:
-        return jsonify({"error": "url is required"}), 400  # 에러 응답
-
-    article = store.get_article_by_url(url)     # 저장소에서 기사 조회
-    title = article.title if article else None  # 제목 추출 (있으면)
-
-    summary = openai.get_summary_from_openai(url, title=title)  # OpenAI API 호출
-    store.set_summary(url, summary)             # 요약 저장
-    return jsonify({"url": url, "summary": summary})
-```
-
-- **동작 흐름**:
-  1. 요청 본문에서 URL 추출
-  2. URL이 없으면 400 에러 반환
-  3. 저장소에서 기사 정보 조회
-  4. OpenAI API로 요약 생성
-  5. 요약을 저장소에 저장하고 반환
-
-**`GET /api/review/list`** - 기사 목록 조회
-
-```python
-@app.route('/api/review/list', methods=['GET'])
-def review_list():
-    return jsonify(store.list_articles())  # 모든 기사 목록 반환
-```
-
-**`POST /api/review/delete`** - 기사 삭제
-
-```python
-@app.route('/api/review/delete', methods=['POST'])
-def review_delete():
-    data = request.get_json(silent=True) or {}
-    url = data.get("url")
-    if not url:
-        return jsonify({"error": "url is required"}), 400
-    ok = store.delete_by_url(url)  # 삭제 시도
-    return jsonify({"deleted": ok})  # 성공 여부 반환
-```
-
-**`POST /api/review/select`** - 기사 선택/해제
-
-```python
-@app.route('/api/review/select', methods=['POST'])
-def review_select():
-    data = request.get_json(silent=True) or {}
-    url = data.get("url")
-    selected = bool(data.get("selected", True))  # 기본값: True
-    if not url:
-        return jsonify({"error": "url is required"}), 400
-    ok = store.set_selected(url, selected)
-    return jsonify({"updated": ok})
-```
-
-##### 4. 페이지 라우트
-
-**`GET /`** - 메인 페이지
-
-```python
-@app.route('/')
-def index():
-    return render_template('index.html')  # templates/index.html 렌더링
-```
-
-**`GET /review`** - 검토 페이지
+기존 경로(`/api/*`, `/review`, `/settings`)는 `app.py`에서 Blueprint 함수로 위임하거나 301 리다이렉트해 하위 호환을 유지합니다.
 
 ```python
 @app.route('/review')
-def review_page():
-    return render_template('review.html')  # templates/review.html 렌더링
+def review_page_legacy():
+    return redirect(url_for('news.review_page'), code=301)
 ```
 
 ---
@@ -704,7 +640,7 @@ def review_page():
 
 #### 단계별 설명
 
-##### 1단계: `store.py`에 메서드 추가
+##### 1단계: `apps/news/models.py`에 메서드 추가
 
 **추가할 코드**:
 
@@ -1020,6 +956,5 @@ import pdb; pdb.set_trace()  # 여기서 실행이 멈춤
 
 ---
 
-**마지막 업데이트**: 2025-01-XX
-**작성자**: AI Assistant
+**마지막 업데이트**: 2026-06-18
 **대상**: Python/Flask 주니어 개발자
