@@ -22,15 +22,17 @@ NEWS_CATEGORIES: List[str] = [
     "플랫폼·테크",
     "경쟁사·복지·HR 트렌드",
     "시장·소비 트렌드",
+    "읽을거리",
 ]
 
 # 복붙(그룹웨어 게시판)용 유니코드 이모지. 슬랙 :emoji: 문법이 아닌 실제 문자.
 CATEGORY_ICONS: Dict[str, str] = {
-    "그룹사": "🏢",
-    "유통·F&B·급식": "🍱",
-    "플랫폼·테크": "💻",
-    "경쟁사·복지·HR 트렌드": "👥",
-    "시장·소비 트렌드": "📈",
+    "그룹사": "💚",
+    "유통·F&B·급식": "🍿",
+    "플랫폼·테크": "🛠️",
+    "경쟁사·복지·HR 트렌드": "🔍",
+    "시장·소비 트렌드": "💸",
+    "읽을거리": "🌐",
 }
 
 # DOM id 등 식별자용 슬러그. 카테고리명에 가운뎃점(·)·공백이 있어
@@ -38,6 +40,12 @@ CATEGORY_ICONS: Dict[str, str] = {
 CATEGORY_SLUGS: Dict[str, str] = {
     cat: f"cat-{i}" for i, cat in enumerate(NEWS_CATEGORIES)
 }
+
+# 복붙(그룹웨어 게시판) 맨 끝에 붙는 안내 푸터
+CLIPBOARD_FOOTER = (
+    "★ 뉴스 클리핑 관련 의견, 업계 키워드 추천, 보고 싶은 주제가 있다면 "
+    "댓글로 자유롭게 남겨주세요. 더 유익한 클리핑 운영에 큰 도움이 됩니다!"
+)
 
 
 def is_valid_category(category: str, *, allow_uncategorized: bool = True) -> bool:
@@ -65,6 +73,7 @@ __all__ = [
     "NEWS_CATEGORIES",
     "CATEGORY_ICONS",
     "CATEGORY_SLUGS",
+    "CLIPBOARD_FOOTER",
     "is_valid_category",
     "categories_with_meta",
 ]
