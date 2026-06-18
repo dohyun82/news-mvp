@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List
 
 try:
     # Optional: present in requirements; safe to import.
@@ -75,40 +74,9 @@ class RealDataConfig:
     log_each_item: bool = os.getenv("NAVER_LOG_EACH_ITEM", "false").lower() == "true"
 
 
-def get_default_keywords_by_category() -> Dict[str, List[str]]:
-    """Return the mapping of category → keywords.
-    
-    Categories follow the product domain:
-    - 그룹사 뉴스
-    - 업계 뉴스
-    - 참고 뉴스
-    - 읽을 거리 (no fixed keywords; handled as catch-all)
-    
-    Note: This function now uses keyword_store module (JSON file-based) instead
-    of environment variables. This maintains backward compatibility for existing
-    code that calls this function.
-    
-    Returns:
-        카테고리별 키워드 딕셔너리
-    """
-    # keyword_store 모듈을 동적으로 import하여 순환 참조 방지
-    # modules/keyword_store.py는 아직 유지되므로 상대 경로로 import
-    import sys
-    from pathlib import Path
-    
-    # modules 디렉토리를 sys.path에 추가 (점진적 마이그레이션 중)
-    modules_path = Path(__file__).parent.parent / "modules"
-    if str(modules_path) not in sys.path:
-        sys.path.insert(0, str(modules_path))
-    
-    from modules import keyword_store
-    return keyword_store.get_category_keywords()
-
-
 __all__ = [
     "SlackConfig",
     "OpenAIConfig",
     "ArticleFetchConfig",
     "RealDataConfig",
-    "get_default_keywords_by_category",
 ]

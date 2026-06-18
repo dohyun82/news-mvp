@@ -31,31 +31,31 @@
     news/                         # 뉴스 클리핑 앱
       routes.py
       services.py
-      models.py
+      models.py                   # Article + 파일 영속 InMemoryStore
       templates/
-  core/                           # 공통 기능
-    config.py
-    common.py
-    auth.py
-  shared/                         # 공유 모듈
+  core/                           # 공통 기반
+    config.py                     # 설정(Slack/OpenAI/ArticleFetch/RealData)
+    common.py                     # 로깅·에러 핸들러
+  shared/                         # 재사용 모듈
     ai/                           # AI 클라이언트
-      base_client.py
       openai_client.py
     integrations/                 # 외부 연동
       slack.py
-    storage/                      # 저장소 추상화
-      base_store.py
-  modules/                        # 기존 모듈 (점진적 마이그레이션 중)
+    news/                         # 기사 본문 추출
+      article_content_extractor.py
+  modules/                        # 레거시 (점진 정리 중)
     crawler.py
-    store.py
+    curation.py
     keyword_store.py
   templates/                      # 공통 템플릿
     base.html
     index.html
+    review.html
+    settings.html
   static/
     css/
   data/
-    keywords.json
+    keywords.json                 # 키워드/카테고리 설정
   .env.sample
   .gitignore
   requirements.txt
@@ -371,7 +371,7 @@ SLACK_CHANNEL_ID="new_biz"
 2. 프리뷰에서 실발송으로 전환
 
 - 현재는 토큰/채널 미설정 시 프리뷰 모드로 메시지를 반환합니다.
-- 토큰/채널이 설정되면 `modules/slack.py` 내 TODO 위치에 `chat.postMessage` 연동을 추가합니다(표준 라이브러리 `urllib` 권장).
+- 실발송은 `shared/integrations/slack.py`의 `send_message_to_slack`이 `chat.postMessage`로 처리합니다(표준 라이브러리 `urllib` 사용, 재시도 포함). 토큰/채널 미설정 시 프리뷰 텍스트를 반환합니다.
   - 요청 실패 시 재시도(지수 백오프), 429/5xx 처리
   - 성공/실패 로그 남기기
 

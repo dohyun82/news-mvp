@@ -1,7 +1,7 @@
 import unittest
 
 from modules.curation import normalize_title, deduplicate, map_category, curate
-from core.config import get_default_keywords_by_category
+from modules import keyword_store
 
 
 class TestCuration(unittest.TestCase):
@@ -35,12 +35,12 @@ class TestCuration(unittest.TestCase):
         self.assertEqual(len(result), 2)  # 둘 다 유지
 
     def test_map_category(self):
-        kws = get_default_keywords_by_category()
+        kws = keyword_store.get_category_keywords()
         cat = map_category("기업 복지 포인트 확대", kws)
         self.assertEqual(cat, "업계")
 
     def test_curate_pipeline(self):
-        kws = get_default_keywords_by_category()
+        kws = keyword_store.get_category_keywords()
         raw = [
             {"title": "[광고] 최고의 프로모션 소식", "url": "http://x/ad"},
             {"title": "밀키트 수요 증가", "url": "http://x/1"},
