@@ -651,9 +651,7 @@ content %}
       const plain = data.plain || "";
       const html = data.html || "";
 
-      showClipboardPreview(plain);
-
-      // 클립보드 복사 (HTTPS/localhost에서만 동작) + 실패 시 미리보기 수동 복사
+      // 1차: 클립보드 API (HTTPS/localhost에서 동작, plain+html 모두 복사)
       let copied = false;
       try {
         if (navigator.clipboard && window.ClipboardItem) {
@@ -669,13 +667,18 @@ content %}
           copied = true;
         }
       } catch (e) {
-        console.warn("clipboard API 실패, 수동 복사 안내:", e);
+        console.warn("clipboard API 실패, execCommand로 재시도:", e);
+      }
+
+      // 2차: 클립보드 API가 막힌 환경(HTTP 등) 폴백 — 화면에 보이지 않는 임시 요소로 복사
+      if (!copied) {
+        copied = fallbackCopy(plain);
       }
 
       alert(
         copied
           ? "복사되었습니다. 그룹웨어 게시판에 붙여넣으세요."
-          : "아래 미리보기에서 직접 복사(Ctrl/Cmd+C)하세요."
+          : "복사에 실패했습니다. 다시 시도해주세요."
       );
     } catch (error) {
       console.error("복사 준비 중 오류:", error);
@@ -685,20 +688,24 @@ content %}
     }
   }
 
-  function showClipboardPreview(text) {
-    let ta = document.getElementById("clipboard-preview");
-    if (!ta) {
-      ta = document.createElement("textarea");
-      ta.id = "clipboard-preview";
-      ta.readOnly = true;
-      ta.style.cssText =
-        "width:100%;min-height:160px;margin-top:12px;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;";
-      const section = document.querySelectorAll(".news-section")[1];
-      if (section) section.appendChild(ta);
-    }
+  // 클립보드 API 미지원/차단 환경용 폴백 (화면에 노출하지 않음)
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
     ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.top = "-9999px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
     ta.focus();
     ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
   }
   // 드롭 존 이벤트 설정
   document.addEventListener("DOMContentLoaded", async function () {
