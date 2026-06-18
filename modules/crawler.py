@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 from core.config import RealDataConfig
-from .curation import curate
+from .curation import curate, dedupe_keywords
 from . import keyword_store
 
 
@@ -136,7 +136,13 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
                 kw_list = [k.strip() for k in keywords if k.strip()]
             else:
                 kw_list = []
-        
+
+        # 표기 변형·포함관계 중복 키워드를 수집 전에 제거(설정 키워드 자체는 보존)
+        before_n = len(kw_list)
+        kw_list = dedupe_keywords(kw_list)
+        if before_n != len(kw_list):
+            logger.info("키워드 사전 정리: %d개 -> %d개", before_n, len(kw_list))
+
         # 최대 수집 개수: 사용자 설정 > keyword_store
         # 각 키워드마다 이 개수만큼 수집 (전체 합계가 아님)
         if user_max_articles is not None:
@@ -148,6 +154,7 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
         for kw in kw_list:
             # 각 키워드마다 독립적으로 최대 수집 개수만큼 수집
             remaining = max_per_keyword
+            start = 1  # 네이버 API 페이지 시작 위치(1~1000)
             while remaining > 0:
                 batch = min(100, remaining)
                 # 간단 재시도(최대 2회) + 호출 간 딜레이
@@ -158,7 +165,7 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
                         items = _fetch_naver_news_api(
                             kw,
                             display=batch,
-                            start=1,
+                            start=start,
                             sort=cfg.sort,
                             timeout=max(1, cfg.timeout_ms // 1000),
                             client_id=cfg.client_id,
@@ -166,6 +173,7 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
                         )
                         raw_articles.extend(items)
                         remaining -= len(items)
+                        start += len(items)  # 다음 페이지로 이동
                         success = True
                         logger.info("fetched %d items for kw='%s' (remaining=%d)", len(items), kw, remaining)
                         if cfg.log_each_item:
@@ -179,8 +187,9 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
                                     item.get("url", ""),
                                     item.get("pub_date", ""),
                                 )
-                        # API에서 반환된 개수가 batch보다 적으면 더 이상 수집할 수 없음
-                        if len(items) < batch:
+                        # 반환 개수가 batch보다 적거나 네이버 start 상한(1000)에
+                        # 도달하면 더 이상 수집할 수 없음
+                        if len(items) < batch or start > 1000:
                             remaining = 0
                     except Exception as e:
                         attempts += 1
