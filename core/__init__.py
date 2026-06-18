@@ -7,6 +7,14 @@ components shared across all applications.
 
 from .config import OpenAIConfig, RealDataConfig, SlackConfig
 from .common import configure_logging, register_error_handlers, register_http_logging
+from .categories import (
+    NEWS_CATEGORIES,
+    UNCATEGORIZED,
+    CATEGORY_ICONS,
+    CATEGORY_SLUGS,
+    is_valid_category,
+    categories_with_meta,
+)
 
 __all__ = [
     "OpenAIConfig",
@@ -15,4 +23,10 @@ __all__ = [
     "configure_logging",
     "register_error_handlers",
     "register_http_logging",
+    "NEWS_CATEGORIES",
+    "UNCATEGORIZED",
+    "CATEGORY_ICONS",
+    "CATEGORY_SLUGS",
+    "is_valid_category",
+    "categories_with_meta",
 ]

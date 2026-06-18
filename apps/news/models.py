@@ -18,6 +18,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from core.categories import UNCATEGORIZED
+
 logger = logging.getLogger("news.store")
 
 # 수집/검토 상태를 보존할 JSON 파일 경로 (환경변수로 재정의 가능)
@@ -31,7 +33,7 @@ class Article:
     Attributes:
         title: Article title
         url: Article URL (unique identifier)
-        category: Category (그룹사, 업계, 참고, 읽을거리)
+        category: Category (core.categories.NEWS_CATEGORIES 중 하나 또는 미분류)
         selected: Whether the article is selected for Slack delivery
         summary: AI-generated summary
         description: Article description from Naver API
@@ -93,10 +95,10 @@ class InMemoryStore:
             Article(
                 title=a.get("title", ""),
                 url=a.get("url", ""),
-                category=a.get("category", "읽을거리"),
+                category=a.get("category", UNCATEGORIZED),
                 description=a.get("description", ""),  # 네이버 API description 저장
                 pub_date=a.get("pub_date", ""),  # 네이버 API 발행일 저장
-                original_category=a.get("category", "읽을거리"),  # 원본 카테고리 초기화
+                original_category=a.get("category", UNCATEGORIZED),  # 원본 카테고리 초기화
             )
             for a in articles
         ]

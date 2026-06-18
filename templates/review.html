@@ -11,7 +11,7 @@ flex-direction: column; height: 100%; } .news-section:first-child { flex: 1; }
 .section-header { display: flex; align-items: center; gap: 12px; margin-bottom:
 12px; } .draggable { cursor: grab; } .draggable:active { cursor: grabbing;
 opacity: 0.6; } .selected-news-container { display: grid; grid-template-columns:
-repeat(4, 1fr); gap: 16px; flex: 1; min-height: 0; } .category-section {
+repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; flex: 1; min-height: 0; } .category-section {
 display: flex; flex-direction: column; height: 100%; min-height: 0;
 background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px
 2px rgba(0, 0, 0, 0.05); } .category-section h3 { margin: 0 0 8px 0; font-size:
@@ -74,48 +74,29 @@ content %}
       <button id="summarize-all-btn" onclick="summarizeAll()" disabled>
         뉴스 요약
       </button>
-      <button id="send-slack-btn" onclick="sendSlack()" disabled>
-        슬랙 전송
+      <button id="copy-btn" onclick="copyToClipboard()" disabled>
+        복사하기
       </button>
     </div>
     <div id="selected-news-list" class="selected-news-container">
+      {% for cat in categories %}
       <div class="category-section">
-        <h3>그룹사 뉴스</h3>
+        <h3>{{ cat.icon }} {{ cat.name }}</h3>
         <div
-          id="category-그룹사"
+          id="{{ cat.slug }}"
           class="drop-zone category-drop-zone"
-          data-category="그룹사"
+          data-category="{{ cat.name }}"
         ></div>
       </div>
-      <div class="category-section">
-        <h3>업계 뉴스</h3>
-        <div
-          id="category-업계"
-          class="drop-zone category-drop-zone"
-          data-category="업계"
-        ></div>
-      </div>
-      <div class="category-section">
-        <h3>참고 뉴스</h3>
-        <div
-          id="category-참고"
-          class="drop-zone category-drop-zone"
-          data-category="참고"
-        ></div>
-      </div>
-      <div class="category-section">
-        <h3>읽을거리</h3>
-        <div
-          id="category-읽을거리"
-          class="drop-zone category-drop-zone"
-          data-category="읽을거리"
-        ></div>
-      </div>
+      {% endfor %}
     </div>
   </div>
 </div>
 {% endblock %} {% block extra_scripts %}
 <script>
+  // 서버에서 주입한 카테고리 목록 (SSOT: core/categories.py)
+  const CATEGORY_NAMES = {{ category_names | tojson }};
+
   // 로딩 상태 관리
   let isLoading = false;
 
@@ -249,10 +230,10 @@ content %}
       summarizeBtn.disabled = !hasUnsummarized || selectedNews.length === 0;
     }
 
-    // 슬랙 발송 버튼: 선택된 뉴스가 있을 때 활성화 (요약 여부 무관)
-    const sendSlackBtn = document.getElementById("send-slack-btn");
-    if (sendSlackBtn) {
-      sendSlackBtn.disabled = selectedNews.length === 0;
+    // 복사 버튼: 선택된 뉴스가 있을 때 활성화 (요약 여부 무관)
+    const copyBtn = document.getElementById("copy-btn");
+    if (copyBtn) {
+      copyBtn.disabled = selectedNews.length === 0;
     }
   }
 
@@ -336,7 +317,7 @@ content %}
     const selectedNews = data.filter((a) => a.selected);
 
     // 카테고리별로 그룹화
-    const categories = ["그룹사", "업계", "참고", "읽을거리"];
+    const categories = CATEGORY_NAMES;
     const newsByCategory = {};
     categories.forEach((cat) => {
       newsByCategory[cat] = selectedNews.filter((a) => a.category === cat);
@@ -344,7 +325,7 @@ content %}
 
     // 각 카테고리 영역에 뉴스 표시
     categories.forEach((category) => {
-      const categoryZone = document.getElementById(`category-${category}`);
+      const categoryZone = document.querySelector(`[data-category="${category}"]`);
       if (!categoryZone) return;
 
       categoryZone.innerHTML = "";
@@ -657,36 +638,72 @@ content %}
       hideLoading();
     }
   }
-  async function sendSlack() {
+  async function copyToClipboard() {
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     try {
-      showLoading("슬랙 발송 중...");
-      const res = await fetch("/api/send-slack", { method: "POST" });
+      showLoading("복사 준비 중...");
+      const res = await fetch("/news/api/clipboard");
       const data = await res.json();
-      alert(data.message || "완료");
+      const plain = data.plain || "";
+      const html = data.html || "";
 
-      // 슬랙 전송 성공 시 버튼 비활성화
-      if (data.success) {
-        const sendSlackBtn = document.getElementById("send-slack-btn");
-        if (sendSlackBtn) {
-          sendSlackBtn.disabled = true;
+      showClipboardPreview(plain);
+
+      // 클립보드 복사 (HTTPS/localhost에서만 동작) + 실패 시 미리보기 수동 복사
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/plain": new Blob([plain], { type: "text/plain" }),
+              "text/html": new Blob([html], { type: "text/html" }),
+            }),
+          ]);
+          copied = true;
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(plain);
+          copied = true;
         }
+      } catch (e) {
+        console.warn("clipboard API 실패, 수동 복사 안내:", e);
       }
+
+      alert(
+        copied
+          ? "복사되었습니다. 그룹웨어 게시판에 붙여넣으세요."
+          : "아래 미리보기에서 직접 복사(Ctrl/Cmd+C)하세요."
+      );
     } catch (error) {
-      console.error("슬랙 발송 중 오류:", error);
-      alert("슬랙 발송 중 오류가 발생했습니다: " + error.message);
+      console.error("복사 준비 중 오류:", error);
+      alert("복사 준비 중 오류가 발생했습니다: " + error.message);
     } finally {
       hideLoading();
     }
+  }
+
+  function showClipboardPreview(text) {
+    let ta = document.getElementById("clipboard-preview");
+    if (!ta) {
+      ta = document.createElement("textarea");
+      ta.id = "clipboard-preview";
+      ta.readOnly = true;
+      ta.style.cssText =
+        "width:100%;min-height:160px;margin-top:12px;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;";
+      const section = document.querySelectorAll(".news-section")[1];
+      if (section) section.appendChild(ta);
+    }
+    ta.value = text;
+    ta.focus();
+    ta.select();
   }
   // 드롭 존 이벤트 설정
   document.addEventListener("DOMContentLoaded", async function () {
     // 페이지 로드 시 초기 버튼 상태 업데이트
     await updateButtons();
     // 각 카테고리 영역에 드롭 이벤트 핸들러 추가
-    const categories = ["그룹사", "업계", "참고", "읽을거리"];
+    const categories = CATEGORY_NAMES;
     categories.forEach((category) => {
-      const categoryZone = document.getElementById(`category-${category}`);
+      const categoryZone = document.querySelector(`[data-category="${category}"]`);
       if (categoryZone) {
         categoryZone.addEventListener("dragover", handleDragOver);
         categoryZone.addEventListener("dragleave", handleDragLeave);

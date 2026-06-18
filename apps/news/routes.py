@@ -12,10 +12,11 @@ import logging
 from flask import jsonify, render_template, request
 
 from . import news_bp
+from core.categories import is_valid_category, categories_with_meta, NEWS_CATEGORIES
 from .models import store
 from .services import collect_news, get_keyword_settings, save_keyword_settings
 from shared.ai.openai_client import get_summary_from_openai
-from shared.integrations.slack import send_message_to_slack
+from shared.integrations.clipboard import format_clipboard_text, format_clipboard_html
 from shared.news.article_content_extractor import extract_article_content
 
 
@@ -79,12 +80,15 @@ def summarize_news_route():
     )
 
 
-@news_bp.route('/api/send-slack', methods=['POST'])
-def send_slack_route():
-    """슬랙 발송 API."""
+@news_bp.route('/api/clipboard', methods=['GET'])
+def clipboard_route():
+    """선택된 뉴스를 그룹웨어 게시판 복붙용 텍스트/HTML로 반환."""
     selected = store.get_selected()
-    success, message = send_message_to_slack(selected)
-    return jsonify({"success": success, "message": message})
+    return jsonify({
+        "plain": format_clipboard_text(selected),
+        "html": format_clipboard_html(selected),
+        "count": len(selected),
+    })
 
 
 # Review workflow APIs
@@ -131,9 +135,8 @@ def review_category_route():
             return jsonify({"error": "category is required"}), 400
         
         # 유효한 카테고리인지 확인
-        valid_categories = ["그룹사", "업계", "참고", "읽을거리"]
-        if category not in valid_categories:
-            return jsonify({"error": f"invalid category: {category}. Must be one of {valid_categories}"}), 400
+        if not is_valid_category(category):
+            return jsonify({"error": f"invalid category: {category}"}), 400
         
         # Article 존재 여부 확인
         article = store.get_article_by_url(url)
@@ -161,7 +164,6 @@ def settings_initial_values_route():
     return jsonify({
         "keywords": settings["keywords"],
         "max_articles": settings["max_articles"],
-        "category_keywords": settings["category_keywords"],
         "max_age_hours": settings["max_age_hours"],
     })
 
@@ -173,14 +175,12 @@ def settings_save_route():
     요청 본문:
     - keywords: 쉼표로 구분된 키워드 문자열
     - max_articles: 최대 수집 뉴스 개수 (정수)
-    - category_keywords: 카테고리별 키워드 딕셔너리 {"그룹사": ["키워드1", ...], "업계": [...], "참고": [...]}
     - max_age_hours: 최대 기사 나이 (시간, 정수, 0 이상)
     """
     try:
         data = request.get_json(silent=True) or {}
         keywords = data.get("keywords")
         max_articles = data.get("max_articles")
-        category_keywords = data.get("category_keywords")
         max_age_hours = data.get("max_age_hours")
         
         # 검증
@@ -196,21 +196,7 @@ def settings_save_route():
             except (ValueError, TypeError):
                 return jsonify({"error": "max_articles must be an integer"}), 400
         
-        if category_keywords is not None:
-            if not isinstance(category_keywords, dict):
-                return jsonify({"error": "category_keywords must be a dictionary"}), 400
-            # 유효한 카테고리인지 확인
-            valid_categories = ["그룹사", "업계", "참고"]
-            for category in category_keywords.keys():
-                if category not in valid_categories:
-                    return jsonify({"error": f"invalid category: {category}. Must be one of {valid_categories}"}), 400
-            # 각 카테고리의 값이 리스트인지 확인
-            for category, keywords_list in category_keywords.items():
-                if not isinstance(keywords_list, list):
-                    return jsonify({"error": f"category_keywords[{category}] must be a list"}), 400
-                # 리스트 내 모든 항목이 문자열인지 확인
-                if not all(isinstance(kw, str) for kw in keywords_list):
-                    return jsonify({"error": f"category_keywords[{category}] must contain only strings"}), 400
+        # 카테고리 분류는 검토 화면에서 수동으로 하므로 설정에서 관리하지 않는다.
         
         if max_age_hours is not None:
             try:
@@ -224,7 +210,6 @@ def settings_save_route():
         success = save_keyword_settings(
             keywords=keywords,
             max_articles=max_articles,
-            category_keywords=category_keywords,
             max_age_hours=max_age_hours
         )
         
@@ -247,7 +232,6 @@ def settings_get_route():
     return jsonify({
         "keywords": settings["keywords"],
         "max_articles": settings["max_articles"],
-        "category_keywords": settings["category_keywords"],
         "max_age_hours": settings["max_age_hours"],
     })
 
@@ -256,7 +240,12 @@ def settings_get_route():
 @news_bp.route('/review')
 def review_page():
     """뉴스 클리핑 검토 페이지."""
-    return render_template('review.html', current_page='review')
+    return render_template(
+        'review.html',
+        current_page='review',
+        categories=categories_with_meta(),
+        category_names=NEWS_CATEGORIES,
+    )
 
 
 @news_bp.route('/settings')

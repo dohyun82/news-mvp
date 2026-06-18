@@ -28,7 +28,7 @@ app.register_blueprint(news_bp)
 # 하위 호환성: 기존 라우트를 새로운 Blueprint 함수로 위임
 # 뉴스 관련 API 라우트 (POST는 리다이렉트 대신 직접 처리)
 from apps.news.routes import (
-    collect_news_route, summarize_news_route, send_slack_route,
+    collect_news_route, summarize_news_route,
     review_list_route, review_delete_route, review_select_route, review_category_route,
     settings_initial_values_route, settings_save_route, settings_get_route
 )
@@ -42,11 +42,6 @@ def collect_news_legacy():
 def summarize_news_legacy():
     """기존 뉴스 요약 API (하위 호환성)."""
     return summarize_news_route()
-
-@app.route('/api/send-slack', methods=['POST'])
-def send_slack_legacy():
-    """기존 슬랙 발송 API (하위 호환성)."""
-    return send_slack_route()
 
 @app.route('/api/review/list', methods=['GET'])
 def review_list_legacy():
