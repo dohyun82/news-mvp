@@ -235,12 +235,7 @@ def crawl_naver_news(keywords: List[str] = None, user_keywords: str = None, user
     raw_articles = _filter_by_age(raw_articles, max_age_hours)
     logger.info("after age filtering: %d articles", len(raw_articles))
 
-    # 카테고리별 키워드: 사용자 설정 > keyword_store
-    if user_category_keywords is not None:
-        keywords_by_category = user_category_keywords
-    else:
-        keywords_by_category = keyword_store.get_category_keywords()
-    
-    result = curate(raw_articles, keywords_by_category)
+    # 카테고리 분류는 검토 화면에서 수동으로 하므로 수집 단계에서는 미분류로 둔다.
+    result = curate(raw_articles)
     return result
 

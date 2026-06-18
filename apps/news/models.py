@@ -18,6 +18,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from core.categories import UNCATEGORIZED
+
 logger = logging.getLogger("news.store")
 
 # 수집/검토 상태를 보존할 JSON 파일 경로 (환경변수로 재정의 가능)
@@ -31,7 +33,7 @@ class Article:
     Attributes:
         title: Article title
         url: Article URL (unique identifier)
-        category: Category (그룹사, 업계, 참고, 읽을거리)
+        category: Category (core.categories.NEWS_CATEGORIES 중 하나 또는 미분류)
         selected: Whether the article is selected for Slack delivery
         summary: AI-generated summary
         description: Article description from Naver API
@@ -93,10 +95,10 @@ class InMemoryStore:
             Article(
                 title=a.get("title", ""),
                 url=a.get("url", ""),
-                category=a.get("category", "읽을거리"),
+                category=a.get("category", UNCATEGORIZED),
                 description=a.get("description", ""),  # 네이버 API description 저장
                 pub_date=a.get("pub_date", ""),  # 네이버 API 발행일 저장
-                original_category=a.get("category", "읽을거리"),  # 원본 카테고리 초기화
+                original_category=a.get("category", UNCATEGORIZED),  # 원본 카테고리 초기화
             )
             for a in articles
         ]
@@ -132,18 +134,25 @@ class InMemoryStore:
         for a in self._articles:
             if a.url == url:
                 a.selected = selected
-                # 선택 해제 시 원본 카테고리로 복원
+                # 선택 해제 시 원본 카테고리로 복원하고 AI 요약을 리셋
+                # (다시 선택하면 네이버 요약부터 시작하고 AI 요약은 재생성)
                 if not selected:
                     a.category = a.original_category
+                    a.summary = ""
                 self._save_to_disk()
                 return True
         return False
 
     def set_category(self, url: str, category: str) -> bool:
-        """Update category for an article. original_category is preserved."""
-        for a in self._articles:
+        """Update category for an article. original_category is preserved.
+
+        분류한 기사를 목록 맨 앞으로 이동시켜, 검토 화면에서 가장 최근에
+        분류한 기사가 해당 카테고리 영역의 맨 위에 표시되도록 한다.
+        """
+        for i, a in enumerate(self._articles):
             if a.url == url:
                 a.category = category
+                self._articles.insert(0, self._articles.pop(i))
                 self._save_to_disk()
                 return True
         return False

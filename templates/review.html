@@ -11,11 +11,14 @@ flex-direction: column; height: 100%; } .news-section:first-child { flex: 1; }
 .section-header { display: flex; align-items: center; gap: 12px; margin-bottom:
 12px; } .draggable { cursor: grab; } .draggable:active { cursor: grabbing;
 opacity: 0.6; } .selected-news-container { display: grid; grid-template-columns:
-repeat(4, 1fr); gap: 16px; flex: 1; min-height: 0; } .category-section {
+repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 16px; flex: 1; min-height: 0; } .category-section {
 display: flex; flex-direction: column; height: 100%; min-height: 0;
 background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px
 2px rgba(0, 0, 0, 0.05); } .category-section h3 { margin: 0 0 8px 0; font-size:
-16px; color: #333; font-weight: 600; } .drop-zone { flex: 1; overflow-y: auto;
+16px; color: #333; font-weight: 600; } .category-section h3 .cat-count {
+display: inline-block; min-width: 16px; padding: 1px 7px; margin-left: 4px;
+border-radius: 10px; background-color: #eef2f7; color: #5a6b7b; font-size: 12px;
+font-weight: 600; text-align: center; vertical-align: middle; } .drop-zone { flex: 1; overflow-y: auto;
 padding: 16px; border: 2px dashed #ccc; border-radius: 8px; background-color:
 #f8f9fa; transition: all 0.2s ease; min-height: 0; } .category-drop-zone {
 min-height: 0; } .drop-zone.drag-over { border-color: #4a90e2; background-color:
@@ -74,48 +77,29 @@ content %}
       <button id="summarize-all-btn" onclick="summarizeAll()" disabled>
         뉴스 요약
       </button>
-      <button id="send-slack-btn" onclick="sendSlack()" disabled>
-        슬랙 전송
+      <button id="copy-btn" onclick="copyToClipboard()" disabled>
+        복사하기
       </button>
     </div>
     <div id="selected-news-list" class="selected-news-container">
+      {% for cat in categories %}
       <div class="category-section">
-        <h3>그룹사 뉴스</h3>
+        <h3>{{ cat.icon }} {{ cat.name }} <span class="cat-count" data-count-for="{{ cat.name }}">0</span></h3>
         <div
-          id="category-그룹사"
+          id="{{ cat.slug }}"
           class="drop-zone category-drop-zone"
-          data-category="그룹사"
+          data-category="{{ cat.name }}"
         ></div>
       </div>
-      <div class="category-section">
-        <h3>업계 뉴스</h3>
-        <div
-          id="category-업계"
-          class="drop-zone category-drop-zone"
-          data-category="업계"
-        ></div>
-      </div>
-      <div class="category-section">
-        <h3>참고 뉴스</h3>
-        <div
-          id="category-참고"
-          class="drop-zone category-drop-zone"
-          data-category="참고"
-        ></div>
-      </div>
-      <div class="category-section">
-        <h3>읽을거리</h3>
-        <div
-          id="category-읽을거리"
-          class="drop-zone category-drop-zone"
-          data-category="읽을거리"
-        ></div>
-      </div>
+      {% endfor %}
     </div>
   </div>
 </div>
 {% endblock %} {% block extra_scripts %}
 <script>
+  // 서버에서 주입한 카테고리 목록 (SSOT: core/categories.py)
+  const CATEGORY_NAMES = {{ category_names | tojson }};
+
   // 로딩 상태 관리
   let isLoading = false;
 
@@ -249,10 +233,10 @@ content %}
       summarizeBtn.disabled = !hasUnsummarized || selectedNews.length === 0;
     }
 
-    // 슬랙 발송 버튼: 선택된 뉴스가 있을 때 활성화 (요약 여부 무관)
-    const sendSlackBtn = document.getElementById("send-slack-btn");
-    if (sendSlackBtn) {
-      sendSlackBtn.disabled = selectedNews.length === 0;
+    // 복사 버튼: 선택된 뉴스가 있을 때 활성화 (요약 여부 무관)
+    const copyBtn = document.getElementById("copy-btn");
+    if (copyBtn) {
+      copyBtn.disabled = selectedNews.length === 0;
     }
   }
 
@@ -336,7 +320,7 @@ content %}
     const selectedNews = data.filter((a) => a.selected);
 
     // 카테고리별로 그룹화
-    const categories = ["그룹사", "업계", "참고", "읽을거리"];
+    const categories = CATEGORY_NAMES;
     const newsByCategory = {};
     categories.forEach((cat) => {
       newsByCategory[cat] = selectedNews.filter((a) => a.category === cat);
@@ -344,12 +328,18 @@ content %}
 
     // 각 카테고리 영역에 뉴스 표시
     categories.forEach((category) => {
-      const categoryZone = document.getElementById(`category-${category}`);
+      const categoryZone = document.querySelector(`[data-category="${category}"]`);
       if (!categoryZone) return;
 
       categoryZone.innerHTML = "";
 
       const newsInCategory = newsByCategory[category] || [];
+
+      // 카테고리 헤더의 개수 배지 갱신
+      const countEl = document.querySelector(
+        `[data-count-for="${category}"]`
+      );
+      if (countEl) countEl.textContent = newsInCategory.length;
 
       if (newsInCategory.length === 0) {
         categoryZone.innerHTML =
@@ -657,36 +647,88 @@ content %}
       hideLoading();
     }
   }
-  async function sendSlack() {
+  async function copyToClipboard() {
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
     try {
-      showLoading("슬랙 발송 중...");
-      const res = await fetch("/api/send-slack", { method: "POST" });
+      showLoading("복사 준비 중...");
+      const res = await fetch("/news/api/clipboard");
       const data = await res.json();
-      alert(data.message || "완료");
+      const plain = data.plain || "";
+      const html = data.html || "";
 
-      // 슬랙 전송 성공 시 버튼 비활성화
-      if (data.success) {
-        const sendSlackBtn = document.getElementById("send-slack-btn");
-        if (sendSlackBtn) {
-          sendSlackBtn.disabled = true;
+      // 1차: 클립보드 API (HTTPS/localhost에서 동작, plain+html 모두 복사)
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/plain": new Blob([plain], { type: "text/plain" }),
+              "text/html": new Blob([html], { type: "text/html" }),
+            }),
+          ]);
+          copied = true;
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(plain);
+          copied = true;
         }
+      } catch (e) {
+        console.warn("clipboard API 실패, execCommand로 재시도:", e);
       }
+
+      // 2차: 클립보드 API가 막힌 환경(HTTP 등) 폴백 — 서식(HTML) 유지하며 복사
+      if (!copied) {
+        copied = fallbackCopy(html, plain);
+      }
+
+      alert(
+        copied
+          ? "복사되었습니다. 그룹웨어 게시판에 붙여넣으세요."
+          : "복사에 실패했습니다. 다시 시도해주세요."
+      );
     } catch (error) {
-      console.error("슬랙 발송 중 오류:", error);
-      alert("슬랙 발송 중 오류가 발생했습니다: " + error.message);
+      console.error("복사 준비 중 오류:", error);
+      alert("복사 준비 중 오류가 발생했습니다: " + error.message);
     } finally {
       hideLoading();
     }
+  }
+
+  // 클립보드 API 미지원/차단 환경(HTTP 등) 폴백 (화면에 노출하지 않음).
+  // copy 이벤트를 가로채 순수 HTML을 그대로 주입한다.
+  // (contenteditable 방식은 페이지 CSS의 배경색 등이 inline으로 섞여 들어가므로 사용하지 않음)
+  function fallbackCopy(html, text) {
+    let ok = false;
+    const onCopy = (e) => {
+      e.preventDefault();
+      e.clipboardData.setData("text/html", html);
+      e.clipboardData.setData("text/plain", text);
+    };
+    document.addEventListener("copy", onCopy);
+    try {
+      // execCommand('copy')를 트리거하기 위한 임시 선택 영역 (실제 데이터는 onCopy가 주입)
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e) {
+      ok = false;
+    }
+    document.removeEventListener("copy", onCopy);
+    return ok;
   }
   // 드롭 존 이벤트 설정
   document.addEventListener("DOMContentLoaded", async function () {
     // 페이지 로드 시 초기 버튼 상태 업데이트
     await updateButtons();
     // 각 카테고리 영역에 드롭 이벤트 핸들러 추가
-    const categories = ["그룹사", "업계", "참고", "읽을거리"];
+    const categories = CATEGORY_NAMES;
     categories.forEach((category) => {
-      const categoryZone = document.getElementById(`category-${category}`);
+      const categoryZone = document.querySelector(`[data-category="${category}"]`);
       if (categoryZone) {
         categoryZone.addEventListener("dragover", handleDragOver);
         categoryZone.addEventListener("dragleave", handleDragLeave);

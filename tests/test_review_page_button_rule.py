@@ -14,11 +14,11 @@ class TestReviewPageButtonRule(unittest.TestCase):
 
         html = response.get_data(as_text=True)
         self.assertIn(
-            "sendSlackBtn.disabled = selectedNews.length === 0;",
+            "copyBtn.disabled = selectedNews.length === 0;",
             html,
         )
         self.assertNotIn(
-            "sendSlackBtn.disabled = !allSummarized || selectedNews.length === 0;",
+            "copyBtn.disabled = !allSummarized || selectedNews.length === 0;",
             html,
         )
         self.assertNotIn("const allSummarized =", html)

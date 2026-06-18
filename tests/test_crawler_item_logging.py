@@ -22,11 +22,6 @@ class TestCrawlerItemLogging(unittest.TestCase):
         mock_keyword_store.get_query_keywords.return_value = "테스트키워드"
         mock_keyword_store.get_max_articles.return_value = 2
         mock_keyword_store.get_max_age_hours.return_value = 0
-        mock_keyword_store.get_category_keywords.return_value = {
-            "그룹사": [],
-            "업계": [],
-            "참고": [],
-        }
 
         mock_fetch.return_value = [
             {
@@ -73,11 +68,6 @@ class TestCrawlerItemLogging(unittest.TestCase):
         mock_keyword_store.get_query_keywords.return_value = "테스트키워드"
         mock_keyword_store.get_max_articles.return_value = 1
         mock_keyword_store.get_max_age_hours.return_value = 0
-        mock_keyword_store.get_category_keywords.return_value = {
-            "그룹사": [],
-            "업계": [],
-            "참고": [],
-        }
 
         mock_fetch.return_value = [
             {
