@@ -262,6 +262,14 @@ content %}
     return div.innerHTML;
   }
 
+  function sanitizeUrl(url) {
+    // http/https 스킴만 허용하고 속성/태그 탈출 문자를 차단 (javascript:, data: 등 XSS 방지)
+    const s = String(url || "").trim();
+    if (!/^https?:\/\//i.test(s)) return "#";
+    if (/["'<>`]/.test(s)) return "#";
+    return s;
+  }
+
   async function refreshAllNews(data = null) {
     // 데이터가 전달되지 않으면 API 호출
     if (!data) {
@@ -293,9 +301,7 @@ content %}
       card.innerHTML = `
             <div>
               <span class="category">[${escapedCategory}]</span>
-              <a href="${
-                a.url
-              }" target="_blank" rel="noopener">${escapedTitle}</a>
+              <a href="${sanitizeUrl(a.url)}" target="_blank" rel="noopener">${escapedTitle}</a>
             </div>
             ${
               escapedDescription
@@ -372,9 +378,7 @@ content %}
         card.innerHTML = `
               <div>
                 <span class="category">[${escapedCategory}]</span>
-                <a href="${
-                  a.url
-                }" target="_blank" rel="noopener">${escapedTitle}</a>
+                <a href="${sanitizeUrl(a.url)}" target="_blank" rel="noopener">${escapedTitle}</a>
               </div>
               ${
                 escapedDescription

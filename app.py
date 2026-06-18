@@ -100,13 +100,16 @@ def settings_page_legacy():
     return redirect(url_for('news.settings_page'), code=301)
 
 if __name__ == '__main__':
-    # 개발 모드: 코드 변경 시 자동 리로드 활성화
-    # use_reloader=True: Python 파일 변경 감지 및 자동 재시작
-    # use_debugger=True: 디버깅 모드 활성화
+    import os
+
+    # 실행 설정은 환경변수로 제어하며 기본값은 안전하게 둔다.
+    # 개발 중 디버거/리로더가 필요하면 FLASK_DEBUG=true 로 실행한다.
+    # (Werkzeug 디버거를 외부에 노출하면 원격 코드 실행 위험이 있어 기본은 비활성)
+    debug_enabled = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     app.run(
-        host='0.0.0.0',
-        port=5001,
-        debug=True,
-        use_reloader=True,
-        use_debugger=True
+        host=os.getenv("FLASK_HOST", "127.0.0.1"),
+        port=int(os.getenv("FLASK_PORT", "5001")),
+        debug=debug_enabled,
+        use_reloader=debug_enabled,
+        use_debugger=debug_enabled,
     )
