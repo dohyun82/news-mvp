@@ -134,9 +134,11 @@ class InMemoryStore:
         for a in self._articles:
             if a.url == url:
                 a.selected = selected
-                # 선택 해제 시 원본 카테고리로 복원
+                # 선택 해제 시 원본 카테고리로 복원하고 AI 요약을 리셋
+                # (다시 선택하면 네이버 요약부터 시작하고 AI 요약은 재생성)
                 if not selected:
                     a.category = a.original_category
+                    a.summary = ""
                 self._save_to_disk()
                 return True
         return False

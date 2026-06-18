@@ -15,7 +15,10 @@ repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 16px; flex: 1; min-height: 
 display: flex; flex-direction: column; height: 100%; min-height: 0;
 background-color: white; padding: 12px; border-radius: 6px; box-shadow: 0 1px
 2px rgba(0, 0, 0, 0.05); } .category-section h3 { margin: 0 0 8px 0; font-size:
-16px; color: #333; font-weight: 600; } .drop-zone { flex: 1; overflow-y: auto;
+16px; color: #333; font-weight: 600; } .category-section h3 .cat-count {
+display: inline-block; min-width: 16px; padding: 1px 7px; margin-left: 4px;
+border-radius: 10px; background-color: #eef2f7; color: #5a6b7b; font-size: 12px;
+font-weight: 600; text-align: center; vertical-align: middle; } .drop-zone { flex: 1; overflow-y: auto;
 padding: 16px; border: 2px dashed #ccc; border-radius: 8px; background-color:
 #f8f9fa; transition: all 0.2s ease; min-height: 0; } .category-drop-zone {
 min-height: 0; } .drop-zone.drag-over { border-color: #4a90e2; background-color:
@@ -81,7 +84,7 @@ content %}
     <div id="selected-news-list" class="selected-news-container">
       {% for cat in categories %}
       <div class="category-section">
-        <h3>{{ cat.icon }} {{ cat.name }}</h3>
+        <h3>{{ cat.icon }} {{ cat.name }} <span class="cat-count" data-count-for="{{ cat.name }}">0</span></h3>
         <div
           id="{{ cat.slug }}"
           class="drop-zone category-drop-zone"
@@ -331,6 +334,12 @@ content %}
       categoryZone.innerHTML = "";
 
       const newsInCategory = newsByCategory[category] || [];
+
+      // 카테고리 헤더의 개수 배지 갱신
+      const countEl = document.querySelector(
+        `[data-count-for="${category}"]`
+      );
+      if (countEl) countEl.textContent = newsInCategory.length;
 
       if (newsInCategory.length === 0) {
         categoryZone.innerHTML =

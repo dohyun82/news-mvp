@@ -57,7 +57,8 @@ endblock %} {% block content %}
     <div class="form-group">
       <label for="keyword-input">키워드 추가</label>
       <div class="form-help">
-        쉼표로 구분하여 여러 키워드를 한 번에 추가할 수 있습니다.
+        네이버 뉴스에서 이 키워드로 기사를 검색해 수집합니다. 쉼표로 구분하면
+        여러 개를 한 번에 추가할 수 있습니다.
       </div>
       <div class="add-keyword-group">
         <input
@@ -79,29 +80,29 @@ endblock %} {% block content %}
 
 
   <div class="section">
-    <div class="section-title">최대 수집 뉴스 개수</div>
+    <div class="section-title">최대 수집 개수</div>
     <div class="form-group">
-      <label for="max-articles-input">최대 수집 개수</label>
       <div class="form-help">
-        한 번에 수집할 최대 뉴스 기사 개수를 설정합니다.
+        키워드 <strong>하나당</strong> 수집할 최대 기사 수입니다. 전체 수집량은
+        '등록 키워드 수 × 이 값'까지 늘어날 수 있습니다 (예: 키워드 20개 × 10 = 최대 200건).
       </div>
       <input
         type="number"
         id="max-articles-input"
         min="1"
-        value="30"
-        placeholder="30"
+        value="10"
+        placeholder="예: 10"
+        aria-label="키워드당 최대 수집 개수"
       />
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">뉴스 조회 시간 설정</div>
+    <div class="section-title">뉴스 조회 시간 (시간)</div>
     <div class="form-group">
-      <label for="max-age-hours-input">최대 조회 시간 (시간)</label>
       <div class="form-help">
-        설정한 시간 이전에 발행된 뉴스는 수집하지 않습니다. 0으로 설정하면 시간
-        제한이 없습니다.
+        지금으로부터 최근 몇 시간 이내에 발행된 뉴스만 수집합니다. 그 이전에 발행된
+        기사는 제외되며, <strong>0으로 설정하면 시간 제한 없이</strong> 모두 수집합니다.
       </div>
       <input
         type="number"
@@ -109,7 +110,8 @@ endblock %} {% block content %}
         min="0"
         step="1"
         value="24"
-        placeholder="24"
+        placeholder="예: 24"
+        aria-label="뉴스 조회 시간(시간 단위)"
       />
     </div>
   </div>
