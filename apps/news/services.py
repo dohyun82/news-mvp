@@ -11,15 +11,6 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-# 점진적 마이그레이션 중: 기존 modules를 import하여 사용
-import sys
-from pathlib import Path
-
-# modules 디렉토리를 sys.path에 추가 (점진적 마이그레이션 중)
-modules_path = Path(__file__).parent.parent.parent / "modules"
-if str(modules_path) not in sys.path:
-    sys.path.insert(0, str(modules_path))
-
 from modules import crawler, keyword_store
 from modules.curation import curate
 

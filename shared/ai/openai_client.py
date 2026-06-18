@@ -12,6 +12,8 @@ to generate summaries using the official openai SDK.
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Optional
 
 try:
@@ -20,6 +22,8 @@ except ImportError:
     OpenAI = None  # SDK가 설치되지 않은 경우를 대비
 
 from core.config import OpenAIConfig
+
+logger = logging.getLogger("ai.openai")
 
 
 def _build_news_prompt(
@@ -85,18 +89,17 @@ def get_summary_from_openai(
     cfg = OpenAIConfig()
     if not cfg.api_key:
         # Stubbed behavior: deterministic, helpful output for demos/tests.
-        print("openai_client.py: API key missing; returning stub summary")
+        logger.warning("OPENAI_API_KEY 미설정 — 스텁 요약 반환")
         return f"{url} 요약 완료 (테스트)"
 
     # openai SDK가 설치되지 않은 경우
     if OpenAI is None:
-        print("openai_client.py: openai 패키지가 설치되지 않았습니다. 'pip install openai' 실행 필요")
+        logger.warning("openai 패키지 미설치 — 'pip install openai' 필요")
         return f"{url} 요약 실패 (SDK 미설치)"
 
-    # OpenAI API 클라이언트 초기화
-    # timeout 설정: 기본값 15초를 사용하되, 더 긴 응답 시간이 필요한 경우를 대비
+    # OpenAI API 클라이언트 초기화 (timeout 기본 15초)
     client = OpenAI(api_key=cfg.api_key, timeout=timeout_seconds)
-    
+
     # 뉴스 요약 프롬프트 생성 (본문 우선, 없으면 title+description 기반)
     prompt = _build_news_prompt(
         url=url,
@@ -104,71 +107,47 @@ def get_summary_from_openai(
         description=description,
         article_text=article_text,
     )
-    
-    # API 호출 (1번만 시도, 재시도 없음)
-    try:
-        # 모델 선택 우선순위: 함수 인자 > 환경변수(OPENAI_MODEL) > 하드코딩 기본값
-        model_name = model or getattr(cfg, "model", "") or "gpt-5.4"
-        
-        # API 호출 전 로깅: 전송되는 데이터 기록
-        print("=" * 80)
-        print("OpenAI API 호출 - 전송 데이터")
-        print("=" * 80)
-        print(f"모델: {model_name}")
-        print(f"타임아웃: {timeout_seconds}초")
-        print(f"프롬프트 길이: {len(prompt)}자")
-        print(f"프롬프트 내용 (처음 500자):")
-        print("-" * 80)
-        print(prompt[:500])
-        if len(prompt) > 500:
-            print(f"... (총 {len(prompt)}자, 나머지 {len(prompt) - 500}자 생략)")
-        print("-" * 80)
-        print(f"전체 프롬프트 길이: {len(prompt)}자")
-        print("=" * 80)
-        
-        # OpenAI API 호출
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            timeout=timeout_seconds
-        )
-        
-        # 응답에서 텍스트 추출
-        summary = response.choices[0].message.content.strip()
-        
-        # API 호출 성공 로깅
-        print("=" * 80)
-        print("OpenAI API 호출 성공")
-        print("=" * 80)
-        print(f"응답 길이: {len(summary)}자")
-        print(f"응답 내용 (처음 300자):")
-        print("-" * 80)
-        print(summary[:300])
-        if len(summary) > 300:
-            print(f"... (총 {len(summary)}자, 나머지 {len(summary) - 300}자 생략)")
-        print("-" * 80)
-        print("=" * 80)
-        
-        return summary
-        
-    except Exception as exc:
-        # 에러 발생 시 즉시 실패 반환 (재시도 없음)
-        error_str = str(exc)
-        error_type = type(exc).__name__
-        error_detail = f"{error_type}: {error_str[:100]}" if error_str else str(exc)
-        
-        # API 호출 실패 로깅
-        print("=" * 80)
-        print("OpenAI API 호출 실패")
-        print("=" * 80)
-        print(f"에러 타입: {error_type}")
-        print(f"에러 메시지: {error_str}")
-        print(f"전송했던 프롬프트 길이: {len(prompt)}자")
-        print("=" * 80)
-        
-        return f"{url} 요약 실패 ({error_detail})"
+    # 모델 선택 우선순위: 함수 인자 > 환경변수(OPENAI_MODEL) > 기본값
+    model_name = model or getattr(cfg, "model", "") or "gpt-5.4"
+    logger.debug("OpenAI 요약 요청: model=%s, prompt_len=%d", model_name, len(prompt))
+
+    # 일시적 오류(timeout/503/overloaded/rate limit)에 대비해 지수 백오프로 재시도
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=timeout_seconds,
+            )
+            summary = response.choices[0].message.content.strip()
+            logger.debug(
+                "OpenAI 요약 성공: response_len=%d (attempt %d)", len(summary), attempt
+            )
+            return summary
+        except Exception as exc:
+            error_str = str(exc)
+            error_type = type(exc).__name__
+            lowered = error_str.lower()
+            is_retryable = (
+                "timeout" in lowered
+                or "timed out" in lowered
+                or "503" in error_str
+                or "overloaded" in lowered
+                or "unavailable" in lowered
+                or "rate limit" in lowered
+                or "try again" in lowered
+            )
+            if is_retryable and attempt < max_attempts:
+                wait_time = 2 ** attempt  # 2초, 4초
+                logger.warning(
+                    "OpenAI 요약 실패(attempt %d/%d, %ds 후 재시도): %s: %s",
+                    attempt, max_attempts, wait_time, error_type, error_str[:100],
+                )
+                time.sleep(wait_time)
+                continue
+            error_detail = f"{error_type}: {error_str[:100]}"
+            logger.error("OpenAI 요약 최종 실패(attempt %d): %s", attempt, error_detail)
+            return f"{url} 요약 실패 ({error_detail})"
+
+    return f"{url} 요약 실패 (재시도 한계 도달)"
