@@ -142,10 +142,15 @@ class InMemoryStore:
         return False
 
     def set_category(self, url: str, category: str) -> bool:
-        """Update category for an article. original_category is preserved."""
-        for a in self._articles:
+        """Update category for an article. original_category is preserved.
+
+        분류한 기사를 목록 맨 앞으로 이동시켜, 검토 화면에서 가장 최근에
+        분류한 기사가 해당 카테고리 영역의 맨 위에 표시되도록 한다.
+        """
+        for i, a in enumerate(self._articles):
             if a.url == url:
                 a.category = category
+                self._articles.insert(0, self._articles.pop(i))
                 self._save_to_disk()
                 return True
         return False
