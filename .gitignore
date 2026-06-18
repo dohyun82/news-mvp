@@ -12,6 +12,9 @@ venv/
 .flask.log
 .flask.pid
 
+# Runtime data (수집 기사 상태)
+data/articles.json
+
 # Serena
 .serena/    
 
