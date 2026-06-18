@@ -78,7 +78,11 @@ content %}
         복사하기
       </button>
     </div>
-    <div id="selected-news-list" class="selected-news-container">
+    <div
+      id="selected-news-list"
+      class="selected-news-container"
+      style="grid-template-columns: repeat({{ categories | length }}, minmax(0, 1fr));"
+    >
       {% for cat in categories %}
       <div class="category-section">
         <h3>{{ cat.icon }} {{ cat.name }}</h3>
